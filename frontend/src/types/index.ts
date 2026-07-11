@@ -1,13 +1,18 @@
 import type { GameSpec, SupportedGameType } from "@/types/game";
 
-export type GameType = SupportedGameType;
+/** Arcade templates plus dedicated board-game modes. */
+export type GameType = SupportedGameType | "tic-tac-toe";
+
+/** Value of the editor's game-mode selector. */
+export type GameModeValue = "auto" | GameType;
 
 export type ProjectStatus = "draft" | "generating" | "playable";
 
 export interface Project {
   id: string;
   name: string;
-  gameType: GameType;
+  /** Set after generate when the AI chooses a template; optional at create. */
+  gameType?: GameType;
   status: ProjectStatus;
   /** URL of the generated thumbnail; null renders a placeholder. */
   thumbnailUrl: string | null;
@@ -16,7 +21,6 @@ export interface Project {
 
 export interface NewProjectInput {
   name: string;
-  gameType: GameType;
 }
 
 /** Mirrors backend/src/schemas/level.ts — logical world for generated levels. */

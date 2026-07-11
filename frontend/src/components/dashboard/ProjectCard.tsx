@@ -5,6 +5,7 @@ import {
   Copy,
   Crosshair,
   Gamepad2,
+  Grid3X3,
   Map,
   MousePointerClick,
   MoreVertical,
@@ -39,6 +40,7 @@ const GAME_TYPE_ICONS: Record<GameType, LucideIcon> = {
   clicker: MousePointerClick,
   "simple-shooter": Crosshair,
   "platform-jumper": SquareDashedMousePointer,
+  "tic-tac-toe": Grid3X3,
 };
 
 const THUMBNAIL_GRADIENTS: Record<GameType, string> = {
@@ -50,6 +52,7 @@ const THUMBNAIL_GRADIENTS: Record<GameType, string> = {
   clicker: "from-fuchsia-400/20 via-accent to-secondary",
   "simple-shooter": "from-red-500/20 via-accent to-secondary",
   "platform-jumper": "from-primary/25 via-accent to-secondary",
+  "tic-tac-toe": "from-sky-500/25 via-orange-400/20 to-secondary",
 };
 
 const STATUS_STYLES: Record<ProjectStatus, string> = {
@@ -64,7 +67,15 @@ interface ProjectCardProps {
 }
 
 export function ProjectCard({ project, onOpen }: ProjectCardProps) {
-  const Icon = GAME_TYPE_ICONS[project.gameType];
+  const Icon = project.gameType
+    ? GAME_TYPE_ICONS[project.gameType]
+    : Pencil;
+  const typeLabel = project.gameType
+    ? GAME_TYPE_LABELS[project.gameType]
+    : "Sketch";
+  const gradient = project.gameType
+    ? THUMBNAIL_GRADIENTS[project.gameType]
+    : "from-primary/20 via-accent to-secondary";
 
   return (
     <div className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-soft transition-shadow hover:shadow-soft-lg">
@@ -72,7 +83,7 @@ export function ProjectCard({ project, onOpen }: ProjectCardProps) {
       <div
         className={cn(
           "flex aspect-video items-center justify-center bg-gradient-to-br",
-          THUMBNAIL_GRADIENTS[project.gameType]
+          gradient
         )}
       >
         <Icon className="size-10 text-foreground/25 transition-transform duration-300 group-hover:scale-110" />
@@ -85,8 +96,7 @@ export function ProjectCard({ project, onOpen }: ProjectCardProps) {
               {project.name}
             </h3>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              {GAME_TYPE_LABELS[project.gameType]} ·{" "}
-              {formatUpdatedAt(project.updatedAt)}
+              {typeLabel} · {formatUpdatedAt(project.updatedAt)}
             </p>
           </div>
           <Badge

@@ -1,4 +1,4 @@
-import type { GameType, Project, ProjectStatus } from "@/types";
+import type { GameModeValue, GameType, Project, ProjectStatus } from "@/types";
 
 // Temporary stand-in for Supabase data. Starts empty so the dashboard shows
 // the empty state by default. Replace with a real query once the `projects`
@@ -15,11 +15,30 @@ export const GAME_TYPE_LABELS: Record<GameType, string> = {
   clicker: "Clicker",
   "simple-shooter": "Simple shooter",
   "platform-jumper": "Platform jumper",
+  "tic-tac-toe": "Tic-tac-toe",
 };
 
 export const GAME_TYPE_OPTIONS = (
   Object.entries(GAME_TYPE_LABELS) as [GameType, string][]
 ).map(([value, label]) => ({ value, label }));
+
+export interface GameModeOption {
+  value: GameModeValue;
+  label: string;
+  /** Small helper text shown under the label in the selector. */
+  hint?: string;
+}
+
+/** Editor game-mode selector: auto (AI decides) plus every explicit mode. */
+export const GAME_MODE_OPTIONS: GameModeOption[] = [
+  { value: "auto", label: "Auto", hint: "AI picks from your sketch" },
+  ...GAME_TYPE_OPTIONS.filter((option) => option.value !== "tic-tac-toe"),
+  {
+    value: "tic-tac-toe",
+    label: "Tic-tac-toe",
+    hint: "Classic 3×3 board game",
+  },
+];
 
 export const STATUS_LABELS: Record<ProjectStatus, string> = {
   draft: "Draft",
