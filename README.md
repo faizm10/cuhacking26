@@ -63,7 +63,8 @@ Generation runs in the **frontend** Next.js server routes. Put secrets in
 # frontend/.env.local
 OPENAI_API_KEY=sk-...
 USE_MOCK_OPENAI=false
-# OPENAI_MODEL=           # optional; defaults to gpt-5-mini
+# OPENAI_MODEL=gpt-4.1-mini   # optional; default is gpt-4.1-mini (fast).
+#                             # Use gpt-5-mini for higher quality / slower runs.
 ```
 
 `OPEN_API_KEY` is also accepted as an alias for `OPENAI_API_KEY`.

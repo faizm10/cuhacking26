@@ -11,9 +11,9 @@ import { MOCK_PROJECTS } from "@/lib/mock-data/projects";
 import type { NewProjectInput, Project } from "@/types";
 
 // Session-created projects only live in local state, so the editor page can't
-// look them up — pass name/type along until Supabase owns the data.
+// look them up — pass the name along until Supabase owns the data.
 const editorPath = (project: Project) =>
-  `/project/${project.id}?name=${encodeURIComponent(project.name)}&type=${project.gameType}`;
+  `/project/${project.id}?name=${encodeURIComponent(project.name)}`;
 
 export function DashboardContent() {
   const router = useRouter();
@@ -25,7 +25,6 @@ export function DashboardContent() {
     const project: Project = {
       id: crypto.randomUUID(),
       name: input.name,
-      gameType: input.gameType,
       status: "draft",
       thumbnailUrl: null,
       updatedAt: new Date().toISOString(),

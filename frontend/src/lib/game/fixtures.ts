@@ -239,11 +239,80 @@ export const PONG_RALLY: GameSpec = gameSpecSchema.parse({
   difficulty: "normal",
 });
 
+/**
+ * The "collect the stars" reference sketch, transcribed:
+ * player on a left starting platform → a row of spikes → a small floating
+ * platform above the spikes with a star beside it → a larger platform on the
+ * right with a star above it → a raised final platform with the goal flag.
+ * Strict left-to-right progression; every hop fits the default jump envelope.
+ */
+export const STAR_TRAIL: GameSpec = gameSpecSchema.parse({
+  title: "Star Trail",
+  shortDescription: "Hop the platforms, grab both stars, reach the flag.",
+  gameType: "platform-jumper",
+  objective: "Collect both stars, avoid the spikes, and reach the flag.",
+  controls: {
+    keyboard: ["arrows", "wasd"],
+    mouse: [],
+    touch: ["tap"],
+    instructions: "Left/right to run, up to jump",
+  },
+  player: {
+    x: 60, y: 396, width: 40, height: 44,
+    label: "Player", color: "#3b82f6", appearance: "creature",
+    speed: 320, jumpStrength: 560, canShoot: false,
+  },
+  enemies: [],
+  obstacles: [
+    { id: "spikes", label: "Spikes", color: "#ef4444", kind: "hazard", solid: false,
+      x: 220, y: 500, width: 190, height: 32, damage: 1 },
+  ],
+  collectibles: [
+    { id: "star-1", label: "", color: "#facc15", appearance: "star",
+      x: 315, y: 306, width: 30, height: 30, points: 10 },
+    { id: "star-2", label: "", color: "#facc15", appearance: "star",
+      x: 565, y: 344, width: 30, height: 30, points: 10 },
+    { id: "goal-flag", label: "Flag", color: "#ef4444", appearance: "flag",
+      x: 850, y: 290, width: 38, height: 54, points: 20 },
+  ],
+  projectiles: noProjectiles,
+  platforms: [
+    { id: "start", label: "", color: "#16a34a", kind: "static", movement: "none",
+      patrolDistance: 0, x: 16, y: 440, width: 180, height: 36 },
+    { id: "floating", label: "", color: "#a16207", kind: "static", movement: "none",
+      patrolDistance: 0, x: 270, y: 368, width: 120, height: 28 },
+    { id: "right", label: "", color: "#16a34a", kind: "static", movement: "none",
+      patrolDistance: 0, x: 470, y: 424, width: 220, height: 36 },
+    { id: "final", label: "", color: "#a16207", kind: "static", movement: "none",
+      patrolDistance: 0, x: 760, y: 344, width: 180, height: 32 },
+  ],
+  collisionRules: {
+    playerHitsEnemy: "lose-life",
+    playerHitsObstacle: "lose-life",
+    playerCollectsCollectible: "score-and-remove",
+    projectileHitsEnemy: "ignore",
+    outOfBounds: "block",
+  },
+  scoring: { start: 0, perCollectible: 10, perEnemy: 0, target: 0 },
+  lives: 3,
+  timer: { enabled: false, seconds: 90, countsDown: true },
+  winCondition: "You collected the stars and reached the flag!",
+  loseCondition: "The spikes got you three times.",
+  visualTheme: {
+    style: "garden",
+    background: { color: "#dbeafe", pattern: "hills" },
+    accentColor: "#3b82f6",
+  },
+  feel: { screenShake: true, particles: true, hitFlash: true, collectAnimation: true, bounce: true },
+  difficulty: "normal",
+});
+
 export const EXAMPLE_GAMES: GameSpec[] = [
   ASTRONAUT_STARS,
   FROG_POND,
   CAT_FISH,
   PONG_RALLY,
+  STAR_TRAIL,
 ];
 
 /** Rotate through examples in mock mode so repeat generations feel alive. */

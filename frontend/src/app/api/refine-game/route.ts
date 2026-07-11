@@ -5,6 +5,7 @@ import OpenAI, {
 } from "openai";
 import type { ResponseInput } from "openai/resources/responses/responses";
 
+import { applyLocalRefine } from "@/lib/game/local-refine";
 import { repairGameSpec } from "@/lib/game/repair";
 import {
   refineGameRequestSchema,
@@ -23,7 +24,7 @@ import {
  * POST /api/refine-game — apply a chat request to an existing GameSpec.
  */
 
-const DEFAULT_MODEL = "gpt-5-mini";
+const DEFAULT_MODEL = "gpt-4.1-mini";
 const REQUEST_TIMEOUT_MS = 60_000;
 
 interface SuccessBody {
@@ -38,6 +39,20 @@ function failure(status: number, code: string, message: string): Response {
     { success: false, error: { code, message } },
     { status }
   );
+}
+
+function successBody(
+  game: GameSpec,
+  assistantMessage: string,
+  warnings: string[] = []
+): SuccessBody {
+  const repaired = repairGameSpec(game);
+  return {
+    success: true,
+    gameSpec: repaired.game,
+    assistantMessage,
+    warnings: [...warnings, ...repaired.warnings],
+  };
 }
 
 function devLog(entry: Record<string, unknown>): void {
@@ -67,60 +82,20 @@ async function callTuner(
 }
 
 function mockRefine(request: RefineGameRequest): SuccessBody {
+  const local = applyLocalRefine(request.gameSpec, request.message);
+  if (local.matched) {
+    return successBody(
+      local.game,
+      `${local.assistantMessage} (mock mode — add OPENAI_API_KEY for richer tweaks.)`
+    );
+  }
+
   const game = structuredClone(request.gameSpec);
-  const lower = request.message.toLowerCase();
-  const changes: string[] = [];
-
-  if (/fast|speed|quick/.test(lower)) {
-    game.player.speed = Math.min(900, Math.round(game.player.speed * 1.25) || 280);
-    for (const enemy of game.enemies) {
-      enemy.speed = Math.min(500, Math.round(enemy.speed * 1.2) || 120);
-    }
-    changes.push("sped things up");
-  }
-  if (/slow|easier|easy/.test(lower)) {
-    game.player.speed = Math.max(80, Math.round(game.player.speed * 0.85));
-    game.difficulty = "easy";
-    changes.push("made it a bit easier");
-  }
-  if (/hard|harder|difficult/.test(lower)) {
-    game.difficulty = "normal";
-    game.lives = Math.max(1, game.lives - 1);
-    changes.push("nudged difficulty up");
-  }
-  if (/coin|collect|star|gem/.test(lower) && game.collectibles.length > 0) {
-    const template = game.collectibles[0]!;
-    const nextId = `collectible-mock-${game.collectibles.length + 1}`;
-    game.collectibles.push({
-      ...template,
-      id: nextId,
-      x: Math.min(920, template.x + 48),
-      y: template.y,
-    });
-    changes.push("added another collectible");
-  }
-  if (/jump/.test(lower)) {
-    game.player.jumpStrength = Math.min(
-      900,
-      Math.round(game.player.jumpStrength * 1.15) || 420
-    );
-    changes.push("boosted jump strength");
-  }
-
-  if (changes.length === 0) {
-    game.scoring.perCollectible = Math.min(
-      100,
-      game.scoring.perCollectible + 5
-    );
-    changes.push("tweaked scoring slightly (mock mode)");
-  }
-
-  return {
-    success: true,
-    gameSpec: game,
-    assistantMessage: `Mock mode: ${changes.join(", ")}. Add OPENAI_API_KEY for real chat tweaks.`,
-    warnings: [],
-  };
+  game.scoring.perCollectible = Math.min(100, game.scoring.perCollectible + 5);
+  return successBody(
+    game,
+    "Mock mode: tweaked scoring slightly. Try asking to add a floor, spikes, or speed changes — or add OPENAI_API_KEY for real chat."
+  );
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -151,6 +126,10 @@ export async function POST(req: Request): Promise<Response> {
 
   const apiKey = process.env.OPENAI_API_KEY || process.env.OPEN_API_KEY;
   if (!apiKey) {
+    const local = applyLocalRefine(request.gameSpec, request.message);
+    if (local.matched) {
+      return Response.json(successBody(local.game, local.assistantMessage));
+    }
     return failure(
       503,
       "MISSING_API_KEY",
@@ -174,7 +153,7 @@ export async function POST(req: Request): Promise<Response> {
               {
                 type: "input_image",
                 image_url: request.canvasImage,
-                detail: "auto",
+                detail: "low",
               },
             ] as const)
           : []),
@@ -185,7 +164,7 @@ export async function POST(req: Request): Promise<Response> {
 
   try {
     const firstText = await callTuner(client, model, userContent);
-    let parsedOutput = parseRefineOutput(firstText);
+    let parsedOutput = parseRefineOutput(firstText, request.gameSpec);
     let repaired = false;
 
     if (!parsedOutput.ok) {
@@ -199,7 +178,7 @@ export async function POST(req: Request): Promise<Response> {
         },
       ];
       const secondText = await callTuner(client, model, repairInput);
-      parsedOutput = parseRefineOutput(secondText);
+      parsedOutput = parseRefineOutput(secondText, request.gameSpec);
     }
 
     if (!parsedOutput.ok) {
@@ -212,27 +191,24 @@ export async function POST(req: Request): Promise<Response> {
       return failure(
         502,
         "INVALID_GAME",
-        "The AI couldn't apply that change cleanly. Try rephrasing, or regenerate from the sketch."
+        "The AI couldn't apply that change cleanly. Try rephrasing once, or regenerate from the sketch."
       );
     }
 
-    const { game, warnings } = repairGameSpec(parsedOutput.value.game);
+    const responseBody = successBody(
+      parsedOutput.value.game,
+      parsedOutput.value.assistantMessage
+    );
 
     devLog({
       model,
-      template: game.gameType,
+      template: responseBody.gameSpec.gameType,
       durationMs: Date.now() - startedAt,
       valid: true,
       retried: repaired,
-      repairWarnings: warnings,
+      repairWarnings: responseBody.warnings,
     });
 
-    const responseBody: SuccessBody = {
-      success: true,
-      gameSpec: game,
-      assistantMessage: parsedOutput.value.assistantMessage,
-      warnings,
-    };
     return Response.json(responseBody);
   } catch (error) {
     devLog({

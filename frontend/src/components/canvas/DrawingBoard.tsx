@@ -101,6 +101,20 @@ function extractCanvasData(editor: Editor): CanvasData | null {
     }
   });
 
+  if (process.env.NODE_ENV !== "production") {
+    // Coordinate audit: tldraw page px (zoom/pan-free) → normalized 0-1.
+    console.table(
+      measured.map(({ shape, bounds }, index) => ({
+        id: shape.id.slice(0, 18),
+        type: objects[index]?.type,
+        srcX: Math.round(bounds.x),
+        srcY: Math.round(bounds.y),
+        normX: Number(objects[index]?.x.toFixed(3)),
+        normY: Number(objects[index]?.y.toFixed(3)),
+      }))
+    );
+  }
+
   return { objects, labels, dimensions: { width, height } };
 }
 
@@ -126,10 +140,11 @@ export const DrawingBoard = forwardRef<DrawingBoardHandle, DrawingBoardProps>(
         if (shapes.length === 0) return null;
 
         const { url } = await editor.toImageDataUrl(shapes, {
-          format: "png",
+          format: "jpeg",
           background: true,
-          padding: 32,
+          padding: 24,
           pixelRatio: 1,
+          quality: 0.75,
         });
         return url;
       },

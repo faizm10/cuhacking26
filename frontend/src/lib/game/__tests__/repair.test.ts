@@ -22,6 +22,31 @@ describe("clampRawSpec", () => {
     ).toBe(true);
   });
 
+  it("allows full-width floor platforms", () => {
+    const raw = structuredClone(FROG_POND) as Record<string, unknown> & {
+      platforms: Array<{ width: number; x: number; y: number }>;
+    };
+    raw.platforms.push({
+      id: "floor",
+      label: "Floor",
+      color: "#78716c",
+      kind: "static",
+      movement: "none",
+      patrolDistance: 0,
+      x: 0,
+      y: 504,
+      width: GAME_WORLD.width,
+      height: 36,
+    } as never);
+
+    const clamped = clampRawSpec({ game: raw }) as {
+      game: { platforms: Array<{ width: number }> };
+    };
+    const floor = clamped.game.platforms.at(-1)!;
+    expect(floor.width).toBe(GAME_WORLD.width);
+    expect(gameSpecSchema.safeParse(clamped.game).success).toBe(true);
+  });
+
   it("passes non-object input through untouched", () => {
     expect(clampRawSpec("nonsense")).toBe("nonsense");
     expect(clampRawSpec(null)).toBe(null);
@@ -80,6 +105,16 @@ describe("repairGameSpec", () => {
     const available = game.collectibles.reduce((sum, c) => sum + c.points, 0);
     expect(game.scoring.target).toBeLessThanOrEqual(available);
     expect(warnings.join(" ")).toMatch(/target/i);
+  });
+
+  it("boosts weak platformer jump and speed", () => {
+    const spec = structuredClone(FROG_POND);
+    spec.player.jumpStrength = 40;
+    spec.player.speed = 40;
+    const { game, warnings } = repairGameSpec(spec);
+    expect(game.player.jumpStrength).toBeGreaterThanOrEqual(200);
+    expect(game.player.speed).toBeGreaterThanOrEqual(120);
+    expect(warnings.join(" ")).toMatch(/jump|speed/i);
   });
 
   it("does not mutate its input", () => {

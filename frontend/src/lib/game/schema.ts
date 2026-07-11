@@ -37,7 +37,14 @@ const size = z.object({
   height: z.number().min(8).max(240),
 });
 
+/** Platforms and obstacles may span the full world (e.g. a ground floor). */
+const wideSize = z.object({
+  width: z.number().min(8).max(GAME_WORLD.width),
+  height: z.number().min(8).max(240),
+});
+
 const rect = position.extend(size.shape);
+const wideRect = position.extend(wideSize.shape);
 
 const movementPattern = z.enum([
   "none",
@@ -89,7 +96,7 @@ export const enemySchema = rect.extend({
   damage: z.number().int().min(0).max(5),
 });
 
-export const obstacleSchema = rect.extend({
+export const obstacleSchema = wideRect.extend({
   id: z.string().min(1).max(40),
   label: z.string().max(40),
   color,
@@ -117,7 +124,7 @@ export const projectileSchema = z.object({
   direction: z.enum(["up", "down", "left", "right", "toward-pointer"]),
 });
 
-export const platformSchema = rect.extend({
+export const platformSchema = wideRect.extend({
   id: z.string().min(1).max(40),
   label: z.string().max(40),
   color,

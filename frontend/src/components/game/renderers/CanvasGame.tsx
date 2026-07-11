@@ -17,6 +17,7 @@ import {
   contains,
   intersects,
 } from "@/lib/game/systems/geometry";
+import { stepPlatformerMotion } from "@/lib/game/platformer-physics";
 import type {
   GameCollectible,
   GameEnemy,
@@ -70,6 +71,10 @@ interface RuntimeState {
     grounded: boolean;
     squash: number;
     facing: number;
+    /** Remaining coyote-jump window (seconds). */
+    coyote: number;
+    /** Remaining jump-buffer window (seconds). */
+    jumpBuffer: number;
   };
   enemies: RuntimeEnemy[];
   collectibles: (GameCollectible & { collected: boolean; phase: number })[];
@@ -88,9 +93,11 @@ interface RuntimeState {
 
 interface CanvasGameProps {
   game: GameSpec;
+  /** When true, skip the title screen and start playing immediately. */
+  autoPlay?: boolean;
 }
 
-function createState(game: GameSpec): RuntimeState {
+function createState(game: GameSpec, autoPlay = false): RuntimeState {
   return {
     player: {
       ...game.player,
@@ -99,6 +106,8 @@ function createState(game: GameSpec): RuntimeState {
       grounded: false,
       squash: 1,
       facing: 1,
+      coyote: 0,
+      jumpBuffer: 0,
     },
     enemies: game.enemies.map((enemy, index) => ({
       ...enemy,
@@ -125,7 +134,7 @@ function createState(game: GameSpec): RuntimeState {
     damageCooldown: 0,
     shake: 0,
     flash: 0,
-    status: "ready",
+    status: autoPlay ? "playing" : "ready",
   };
 }
 
@@ -199,22 +208,36 @@ const START_KEYS = new Set([
   "d",
 ]);
 
-export function CanvasGame({ game }: CanvasGameProps) {
+export function CanvasGame({ game, autoPlay = false }: CanvasGameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const stateRef = useRef<RuntimeState>(createState(game));
+  const stateRef = useRef<RuntimeState>(createState(game, autoPlay));
   const keysRef = useRef(new Set<string>());
+  const jumpHeldRef = useRef(false);
   const pointerRef = useRef<{ x: number; y: number; down: boolean } | null>(
     null
   );
   const frameRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number | null>(null);
-  const [uiStatus, setUiStatus] = useState<Status>("ready");
+  const [uiStatus, setUiStatus] = useState<Status>(
+    autoPlay ? "playing" : "ready"
+  );
   const [uiScore, setUiScore] = useState(game.scoring.start);
 
   const blockers = useMemo(() => solidRects(game), [game]);
   const isPlatformer = game.gameType === "platform-jumper";
   const isClicker = game.gameType === "clicker";
   const isPong = game.gameType === "pong";
+
+  // Dev-only layout overlay: bounding boxes + ids for every entity.
+  // Enable with ?debug in the URL or localStorage.setItem("playbox-debug","1").
+  const debugOverlay = useMemo(() => {
+    if (process.env.NODE_ENV === "production") return false;
+    if (typeof window === "undefined") return false;
+    return (
+      new URLSearchParams(window.location.search).has("debug") ||
+      window.localStorage.getItem("playbox-debug") === "1"
+    );
+  }, []);
 
   const setStatus = useCallback((state: RuntimeState, status: Status) => {
     state.status = status;
@@ -230,10 +253,10 @@ export function CanvasGame({ game }: CanvasGameProps) {
 
   const reset = useCallback(
     (autoStart = false) => {
-      stateRef.current = createState(game);
+      stateRef.current = createState(game, autoStart);
       lastTimeRef.current = null;
+      jumpHeldRef.current = false;
       setUiScore(game.scoring.start);
-      if (autoStart) stateRef.current.status = "playing";
       setUiStatus(stateRef.current.status);
     },
     [game]
@@ -246,7 +269,19 @@ export function CanvasGame({ game }: CanvasGameProps) {
   }, [setStatus]);
 
   useEffect(() => {
+    const isTypingTarget = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName;
+      return (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        target.isContentEditable
+      );
+    };
+
     const onKeyDown = (event: KeyboardEvent) => {
+      if (isTypingTarget(event.target)) return;
       const key = event.key.toLowerCase();
       const state = stateRef.current;
       if (state.status === "ready" && START_KEYS.has(key)) {
@@ -266,6 +301,7 @@ export function CanvasGame({ game }: CanvasGameProps) {
       keysRef.current.add(key);
     };
     const onKeyUp = (event: KeyboardEvent) => {
+      if (isTypingTarget(event.target)) return;
       keysRef.current.delete(event.key.toLowerCase());
     };
     window.addEventListener("keydown", onKeyDown);
@@ -417,7 +453,16 @@ export function CanvasGame({ game }: CanvasGameProps) {
       const right = keys.has("arrowright") || keys.has("d");
       const up = keys.has("arrowup") || keys.has("w");
       const down = keys.has("arrowdown") || keys.has("s");
-      const fire = keys.has(" ") || keys.has("spacebar");
+      const space = keys.has(" ") || keys.has("spacebar");
+      const jumpHeld = isPlatformer ? up || space : false;
+      const jumpPressed = jumpHeld && !jumpHeldRef.current;
+      const jumpReleased = !jumpHeld && jumpHeldRef.current;
+      jumpHeldRef.current = jumpHeld;
+      const fire =
+        (!isPlatformer && (space || pointerRef.current?.down)) ||
+        (isPlatformer &&
+          game.player.canShoot &&
+          Boolean(pointerRef.current?.down));
 
       if (left) state.player.facing = -1;
       if (right) state.player.facing = 1;
@@ -426,13 +471,29 @@ export function CanvasGame({ game }: CanvasGameProps) {
         state.player.x = pointerRef.current.x - state.player.width / 2;
         state.player.y = pointerRef.current.y - state.player.height / 2;
       } else if (isPlatformer) {
-        state.player.vx = 0;
-        if (left) state.player.vx = -game.player.speed;
-        if (right) state.player.vx = game.player.speed;
-        if (up && state.player.grounded) {
-          state.player.vy = -Math.max(260, game.player.jumpStrength);
+        const wasGrounded = state.player.grounded;
+        const motion = stepPlatformerMotion({
+          dt,
+          left,
+          right,
+          jumpHeld,
+          jumpPressed,
+          jumpReleased,
+          grounded: wasGrounded,
+          vx: state.player.vx,
+          vy: state.player.vy,
+          coyote: state.player.coyote,
+          jumpBuffer: state.player.jumpBuffer,
+          speed: game.player.speed,
+          jumpStrength: game.player.jumpStrength,
+        });
+        state.player.vx = motion.vx;
+        state.player.vy = motion.vy;
+        state.player.coyote = motion.coyote;
+        state.player.jumpBuffer = motion.jumpBuffer;
+        if (motion.didJump) {
           state.player.grounded = false;
-          state.player.squash = 1.35; // jump stretch
+          state.player.squash = 1.35;
           if (game.feel.particles)
             spawnBurst(
               state,
@@ -441,7 +502,6 @@ export function CanvasGame({ game }: CanvasGameProps) {
               5
             );
         }
-        state.player.vy += 1500 * dt;
         state.player.x += state.player.vx * dt;
         state.player.y += state.player.vy * dt;
       } else {
@@ -456,7 +516,7 @@ export function CanvasGame({ game }: CanvasGameProps) {
         state.player.y += (dy / length) * game.player.speed * dt;
       }
 
-      if (fire || pointerRef.current?.down) shoot(state, now);
+      if (fire) shoot(state, now);
 
       state.player.grounded = false;
       blockAgainst(state.player, previous, blockers);
@@ -771,6 +831,35 @@ export function CanvasGame({ game }: CanvasGameProps) {
         drawHudChip(chipX, `${timeLeft}s`, "#facc15");
       }
 
+      if (debugOverlay) {
+        ctx.font = "10px ui-monospace, monospace";
+        ctx.textAlign = "left";
+        ctx.lineWidth = 1.5;
+        const box = (
+          rect: GameRect,
+          id: string,
+          stroke: string
+        ) => {
+          ctx.strokeStyle = stroke;
+          ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+          ctx.fillStyle = stroke;
+          ctx.fillText(
+            `${id} ${Math.round(rect.x)},${Math.round(rect.y)}`,
+            rect.x + 2,
+            Math.max(10, rect.y - 3)
+          );
+        };
+        game.platforms.forEach((p) => box(p, p.id, "#22d3ee"));
+        game.obstacles.forEach((o) => box(o, o.id, "#f97316"));
+        state.collectibles.forEach((c) => {
+          if (!c.collected) box(c, c.id, "#facc15");
+        });
+        state.enemies.forEach((e) => {
+          if (e.alive) box(e, e.id, "#f87171");
+        });
+        box(state.player, "player", "#a3e635");
+      }
+
       ctx.restore();
 
       if (state.flash > 0 && game.feel.hitFlash) {
@@ -793,7 +882,7 @@ export function CanvasGame({ game }: CanvasGameProps) {
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
       frameRef.current = null;
     };
-  }, [blockers, game, isPlatformer, isPong, setStatus]);
+  }, [blockers, debugOverlay, game, isPlatformer, isPong, setStatus]);
 
   const overlay = (() => {
     const state = stateRef.current;

@@ -5,16 +5,26 @@ import OpenAI, {
 } from "openai";
 import type { ResponseInput } from "openai/resources/responses/responses";
 
+import {
+  coerceTicTacToeSpec,
+  DEFAULT_TIC_TAC_TOE_SPEC,
+  ticTacToeGenerationJsonSchema,
+  type TicTacToeSpec,
+} from "@/components/game/tic-tac-toe/ticTacToeTypes";
+import { modelGenerationJsonSchema } from "@/lib/game/coordinates";
 import { EXAMPLE_GAMES, pickExampleGame } from "@/lib/game/fixtures";
+import { rendererTypeForMode, type RendererType } from "@/lib/game/generated";
+import { applyLayoutPass } from "@/lib/game/layout";
 import { repairGameSpec, resolveGameType } from "@/lib/game/repair";
 import {
   generateGameRequestSchema,
   type GenerateGameRequest,
 } from "@/lib/game/request";
+import { type GameSpec } from "@/lib/game/schema";
 import {
-  generationResultJsonSchema,
-  type GameSpec,
-} from "@/lib/game/schema";
+  buildTicTacToeUserMessage,
+  TIC_TAC_TOE_SYSTEM_PROMPT,
+} from "@/lib/openai/tic-tac-toe-prompt";
 import { parseModelOutput } from "@/lib/openai/parse";
 import {
   buildRepairMessage,
@@ -28,12 +38,13 @@ import {
  * the server: this route is the only place it is read.
  */
 
-const DEFAULT_MODEL = "gpt-5-mini";
+const DEFAULT_MODEL = "gpt-4.1-mini";
 const REQUEST_TIMEOUT_MS = 75_000;
 
 interface SuccessBody {
   success: true;
-  gameSpec: GameSpec;
+  rendererType: RendererType;
+  gameSpec: GameSpec | TicTacToeSpec;
   interpretationSummary: string;
   warnings: string[];
 }
@@ -65,11 +76,99 @@ async function callDesigner(
       format: {
         type: "json_schema",
         name: "playbox_game",
-        schema: generationResultJsonSchema,
+        schema: modelGenerationJsonSchema,
       },
     },
   });
   return response.output_text;
+}
+
+/** Generate a tic-tac-toe config. Coercion means this can never hard-fail:
+ * unusable model output degrades to safe defaults with a warning. */
+async function generateTicTacToe(
+  request: GenerateGameRequest,
+  client: OpenAI,
+  model: string,
+  startedAt: number
+): Promise<Response> {
+  const userContent: ResponseInput = [
+    {
+      role: "user",
+      content: [
+        ...(request.canvasImage
+          ? ([
+              {
+                type: "input_image",
+                image_url: request.canvasImage,
+                detail: "low",
+              },
+            ] as const)
+          : []),
+        { type: "input_text", text: buildTicTacToeUserMessage(request) },
+      ],
+    },
+  ];
+
+  const warnings: string[] = [];
+  let spec = structuredClone(DEFAULT_TIC_TAC_TOE_SPEC);
+  let interpretationSummary =
+    "A classic tic-tac-toe game where you play X against the AI using O.";
+
+  try {
+    const response = await client.responses.create({
+      model,
+      instructions: TIC_TAC_TOE_SYSTEM_PROMPT,
+      input: userContent,
+      text: {
+        format: {
+          type: "json_schema",
+          name: "playbox_tic_tac_toe",
+          schema: ticTacToeGenerationJsonSchema,
+        },
+      },
+    });
+    const json = JSON.parse(response.output_text) as Record<string, unknown>;
+    spec = coerceTicTacToeSpec(json.game ?? json);
+    if (typeof json.interpretationSummary === "string") {
+      interpretationSummary = json.interpretationSummary.slice(0, 300);
+    }
+  } catch (error) {
+    warnings.push("Used classic defaults — the AI styling pass didn't land");
+    devLog({
+      model,
+      template: "tic-tac-toe",
+      durationMs: Date.now() - startedAt,
+      fallback: true,
+      error: error instanceof Error ? error.name : "unknown",
+    });
+  }
+
+  devLog({
+    model,
+    template: "tic-tac-toe",
+    durationMs: Date.now() - startedAt,
+    valid: true,
+  });
+
+  const body: SuccessBody = {
+    success: true,
+    rendererType: "tic-tac-toe",
+    gameSpec: spec,
+    interpretationSummary,
+    warnings,
+  };
+  return Response.json(body);
+}
+
+function mockTicTacToeResponse(): SuccessBody {
+  return {
+    success: true,
+    rendererType: "tic-tac-toe",
+    gameSpec: structuredClone(DEFAULT_TIC_TAC_TOE_SPEC),
+    interpretationSummary:
+      "Mock mode: a classic tic-tac-toe game — you play X against the AI. Add OPENAI_API_KEY to style it from your drawing.",
+    warnings: [],
+  };
 }
 
 function mockResponse(request: GenerateGameRequest): SuccessBody {
@@ -85,6 +184,7 @@ function mockResponse(request: GenerateGameRequest): SuccessBody {
   }
   return {
     success: true,
+    rendererType: "arcade",
     gameSpec: game,
     interpretationSummary: `Mock mode: here's "${game.title}" — a ${game.gameType} example. Add OPENAI_API_KEY to generate from your drawing.`,
     warnings: [],
@@ -111,10 +211,17 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
   const request = parsed.data;
+  // An explicit tic-tac-toe selection is authoritative — it always takes the
+  // dedicated path and renderer, never an arcade reinterpretation.
+  const rendererType = rendererTypeForMode(request.selectedGameType);
 
   if (process.env.USE_MOCK_OPENAI === "true") {
     devLog({ mode: "mock", template: request.selectedGameType });
-    return Response.json(mockResponse(request));
+    return Response.json(
+      rendererType === "tic-tac-toe"
+        ? mockTicTacToeResponse()
+        : mockResponse(request)
+    );
   }
 
   const apiKey =
@@ -134,6 +241,10 @@ export async function POST(req: Request): Promise<Response> {
     maxRetries: 1,
   });
 
+  if (rendererType === "tic-tac-toe") {
+    return generateTicTacToe(request, client, model, startedAt);
+  }
+
   const userContent: ResponseInput = [
     {
       role: "user",
@@ -143,7 +254,7 @@ export async function POST(req: Request): Promise<Response> {
               {
                 type: "input_image",
                 image_url: request.canvasImage,
-                detail: "auto",
+                detail: "low",
               },
             ] as const)
           : []),
@@ -183,20 +294,31 @@ export async function POST(req: Request): Promise<Response> {
       );
     }
 
-    const { game, warnings } = repairGameSpec(parsedOutput.value.game);
+    const repairedSpec = repairGameSpec(parsedOutput.value.game);
+    const layout = applyLayoutPass(repairedSpec.game);
+    const warnings = [...repairedSpec.warnings, ...layout.warnings];
 
     devLog({
       model,
-      template: game.gameType,
+      template: layout.game.gameType,
       durationMs: Date.now() - startedAt,
       valid: true,
       retried: repaired,
       repairWarnings: warnings,
     });
+    if (process.env.NODE_ENV !== "production") {
+      // Compact coordinate table: normalized (model) → world (rendered).
+      for (const row of parsedOutput.debugTable) {
+        console.log(
+          `[coords] ${row.role.padEnd(11)} ${row.id.padEnd(16)} norm(${row.normX}, ${row.normY}) → world(${row.worldX}, ${row.worldY})`
+        );
+      }
+    }
 
     const responseBody: SuccessBody = {
       success: true,
-      gameSpec: game,
+      rendererType: "arcade",
+      gameSpec: layout.game,
       interpretationSummary: parsedOutput.value.interpretationSummary,
       warnings,
     };

@@ -1,5 +1,8 @@
 import { GAME_WORLD, supportedGameTypes } from "@/lib/game/schema";
-import type { GenerateGameRequest } from "@/lib/game/request";
+import type {
+  CanvasObject,
+  GenerateGameRequest,
+} from "@/lib/game/request";
 
 /**
  * Prompt for the game-designer model. The output structure is enforced
@@ -7,47 +10,62 @@ import type { GenerateGameRequest } from "@/lib/game/request";
  * interpretation priorities, and playability rules.
  */
 
-export const GAME_DESIGNER_SYSTEM_PROMPT = `You are designing a tiny web game from a childlike drawing and written instructions. Understand the gameplay intent — never judge drawing quality.
+const MAX_CANVAS_OBJECTS_IN_PROMPT = 48;
+const MIN_OBJECT_AREA = 0.0004; // drop tiny strokes (~2%×2% of canvas)
+
+export const GAME_DESIGNER_SYSTEM_PROMPT = `You are designing a tiny web game from a childlike drawing and written instructions. Never judge drawing quality.
 
 YOUR JOB
-- Map the user's drawing INTO the game: their characters, objects, labels, and spatial relationships must appear in the result. A circle labelled "moon" becomes a moon platform or background object; a stick figure labelled "player" becomes the playable character; red scribbles labelled "lava" become hazards; stars labelled "collect" become collectibles; a rectangle labelled "exit" becomes the goal.
-- Select exactly one supported game template: ${supportedGameTypes.join(", ")}.
-- Create ONE simple gameplay loop that is fun within the first five seconds and lasts roughly 30 seconds to 3 minutes.
+- Map the drawing INTO the game: labelled shapes become matching entities (player, hazards, collectibles, goal/platforms).
+- Pick exactly one template: ${supportedGameTypes.join(", ")}.
+- One simple loop that is fun in five seconds and lasts ~30s–3min.
 
 INTERPRETATION PRIORITY (highest first)
-1. The user's written prompt.
-2. Text labels placed on the canvas (a label near a shape names that shape; sentences are gameplay instructions).
-3. The selected game type.
-4. Visual interpretation of the drawing.
-5. Safe genre defaults.
-When sources conflict, follow the more explicit instruction.
+1. Written prompt  2. Canvas text labels  3. Selected game type  4. Drawing  5. Genre defaults
 
-TEMPLATE BEHAVIOUR
-- dodge: move around and survive moving hazards until a short timer ends.
-- collect: gather a small number of items, optionally avoiding hazards.
-- pong: control a paddle and bounce a ball toward a target or opponent.
-- snake: move on a grid, collect items, grow.
-- maze: navigate solid walls toward an exit, optionally 1-2 items.
-- clicker: click or tap targets repeatedly before time runs out.
-- simple-shooter: move and fire projectiles at a few enemies.
-- platform-jumper: move and jump across a short platform sequence to a goal.
-Never combine more than two major mechanics.
+TEMPLATES (pick one; do not mash more than two mechanics)
+dodge=survive hazards · collect=gather items · pong=paddle+ball · snake=grid grow · maze=walls to exit · clicker=tap targets · simple-shooter=move+shoot · platform-jumper=jump to goal
 
-WORLD & LAYOUT
-- Coordinates: ${GAME_WORLD.width}x${GAME_WORLD.height}, origin top-left, y grows down.
-- The user's canvas positions are normalized 0-1; scale them into the world and keep relative placement, but improve spacing where needed for playability.
-- Keep the level small and entity counts low: 1 player, 0-6 enemies, 0-12 collectibles, 0-16 obstacles, 0-10 platforms.
-- The level must be physically completable: never place the player inside a wall, hazard, or enemy; never place required collectibles in unreachable spots; for platform-jumper keep consecutive platforms within jumping range (about 200px horizontally, 140px vertically).
+COORDINATES (critical)
+- Output NORMALIZED coordinates ONLY: every x, y, width, height is 0–1. Never output pixel values.
+- (x, y) is ALWAYS the top-left corner of the object. Origin is the top-left of the drawing; y grows downward. Do not flip any axis: an object drawn near the bottom has y near 1 and must stay near 1.
+- Typical sizes as fractions: player ≈ 0.04–0.08 wide, a platform ≈ 0.12–0.35 wide and ≈ 0.04–0.08 tall, a collectible ≈ 0.03.
 
-REQUIRED GAME DESIGN
-- Always define controls, a one-sentence objective, a win condition, and a lose condition.
-- Immediate feedback: enable feel options (particles, hitFlash, collectAnimation; screenShake for impactful games).
-- Playful cartoon direction: bright but coordinated 6-digit hex colors, appearance shapes that match the drawing (creature for characters, star/gem/heart for pickups, spiky for dangers, block/cloud/flag for scenery), a background pattern that fits the theme.
-- Use sensible defaults for anything the user left out.
+THE SKETCH LAYOUT IS AUTHORITATIVE
+- Each canvas object's normalized position is where its game entity belongs. Keep every entity within ±0.10 of its drawn position; only nudge spacing for playability.
+- Never relocate the whole level, mirror it, or move bottom objects to the top.
+- Preserve left-to-right progression when the drawing has one.
+
+WORLD
+- The renderer scales your 0–1 layout onto a ${GAME_WORLD.width}×${GAME_WORLD.height} screen.
+- Small counts: 1 player, ≤6 enemies, ≤12 collectibles, ≤16 obstacles, ≤10 platforms.
+- Platform-jumper: only add a floor platform when the drawing clearly shows ground — never replace drawn platforms with a generic floor. Keep jumps short (next platform within ~0.2 horizontally, ~0.2 higher vertically). player.speed 280–360, jumpStrength 480–620 (these two stay in px/s).
+- Never spawn the player inside walls/hazards/enemies; the player starts standing ON its drawn platform.
+
+DESIGN
+- Controls, one-sentence objective, win + lose conditions.
+- Enable feel (particles, hitFlash, collectAnimation; screenShake when impactful).
+- Cartoon look: 6-digit hex colors only (#RRGGBB), matching appearances (creature/star/gem/spiky/flag/block…).
 
 OUTPUT
-- Return only structured data matching the provided schema. No markdown, no prose, no source code, no extra properties.
-- interpretationSummary: one friendly sentence telling the user what you understood, e.g. "Your astronaut collects three stars while jumping over lava to reach the rocket."`;
+- Structured data only (schema). interpretationSummary = one friendly sentence of what you understood.`;
+
+/** Prefer large labelled shapes; drop microscopic strokes that bloat the prompt. */
+export function summarizeCanvasObjects(
+  objects: CanvasObject[],
+  limit = MAX_CANVAS_OBJECTS_IN_PROMPT
+): { items: CanvasObject[]; truncated: number } {
+  const filtered = objects.filter(
+    (obj) => obj.width * obj.height >= MIN_OBJECT_AREA || Boolean(obj.text?.trim())
+  );
+  const ranked = [...filtered].sort((a, b) => {
+    const areaA = a.width * a.height + (a.text ? 0.05 : 0);
+    const areaB = b.width * b.height + (b.text ? 0.05 : 0);
+    return areaB - areaA;
+  });
+  const items = ranked.slice(0, limit);
+  return { items, truncated: Math.max(0, objects.length - items.length) };
+}
 
 /** Serialize the canvas facts into the user message. */
 export function buildUserMessage(request: GenerateGameRequest): string {
@@ -67,18 +85,23 @@ export function buildUserMessage(request: GenerateGameRequest): string {
 
   if (request.canvasLabels.length > 0) {
     sections.push(
-      `CANVAS TEXT LABELS (normalized 0-1 positions; strong gameplay instructions):\n${JSON.stringify(request.canvasLabels)}`
+      `CANVAS TEXT LABELS (normalized 0-1; strong gameplay instructions):\n${JSON.stringify(request.canvasLabels)}`
     );
   }
 
   if (request.canvasObjects.length > 0) {
+    const { items, truncated } = summarizeCanvasObjects(request.canvasObjects);
+    const note =
+      truncated > 0
+        ? ` (showing ${items.length} largest/labelled of ${request.canvasObjects.length}; screenshot is the visual source)`
+        : " (screenshot is the primary visual source; this list is compact layout hints)";
     sections.push(
-      `CANVAS OBJECTS (normalized 0-1 positions/sizes, with color and paint order):\n${JSON.stringify(request.canvasObjects)}`
+      `CANVAS OBJECTS${note}:\n${JSON.stringify(items)}`
     );
   }
 
   sections.push(
-    `CANVAS SIZE: ${Math.round(request.canvasDimensions.width)}x${Math.round(request.canvasDimensions.height)}${request.canvasImage ? " — a screenshot of the drawing is attached; treat it as the primary visual source." : ""}`
+    `CANVAS SIZE: ${Math.round(request.canvasDimensions.width)}x${Math.round(request.canvasDimensions.height)}${request.canvasImage ? " — a low-detail screenshot is attached." : ""}`
   );
 
   return sections.join("\n\n");
@@ -86,5 +109,5 @@ export function buildUserMessage(request: GenerateGameRequest): string {
 
 /** Follow-up message when the first response failed validation. */
 export function buildRepairMessage(issues: string): string {
-  return `Your previous response failed validation:\n${issues}\n\nReturn the corrected structured data only. Keep the same game idea, fix every issue, and use only schema-supported values.`;
+  return `Your previous response failed validation:\n${issues}\n\nReturn the corrected structured data only. Keep the same game idea, fix every issue, and use only schema-supported values. Colors must be six-digit hex (#RRGGBB).`;
 }

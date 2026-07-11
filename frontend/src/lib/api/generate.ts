@@ -1,5 +1,5 @@
 import type { CanvasLabel, CanvasObject } from "@/lib/game/request";
-import type { GameSpec } from "@/lib/game/schema";
+import type { GeneratedGame } from "@/lib/game/generated";
 
 /**
  * Client for POST /api/generate-game (same-origin Next.js route). The OpenAI
@@ -15,11 +15,10 @@ export interface GenerateGameInput {
   canvasDimensions: { width: number; height: number };
 }
 
-export interface GenerateGameResult {
-  gameSpec: GameSpec;
+export type GenerateGameResult = GeneratedGame & {
   interpretationSummary: string;
   warnings: string[];
-}
+};
 
 interface ApiFailure {
   success: false;
@@ -56,8 +55,9 @@ export async function generateGame(
   }
 
   return {
+    rendererType: result.rendererType ?? "arcade",
     gameSpec: result.gameSpec,
     interpretationSummary: result.interpretationSummary ?? "",
     warnings: result.warnings ?? [],
-  };
+  } as GenerateGameResult;
 }

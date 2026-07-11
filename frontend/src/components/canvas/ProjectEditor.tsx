@@ -12,12 +12,13 @@ import type { ChatMessage } from "@/components/canvas/GameChat";
 import { GameDescriptionPanel } from "@/components/canvas/GameDescriptionPanel";
 import { LevelPanel } from "@/components/canvas/LevelPanel";
 import { generateGame, type GenerateGameResult } from "@/lib/api/generate";
-import { refineGame } from "@/lib/api/refine";
+import { refineGame, refineTicTacToe } from "@/lib/api/refine";
 import {
   filterImageFiles,
   validateImageFiles,
 } from "@/lib/canvas/image-upload";
-import type { GameType } from "@/types";
+import { compressScreenshotForVision } from "@/lib/canvas/compress-screenshot";
+import type { GameModeValue, GameType } from "@/types";
 import { cn } from "@/lib/utils";
 
 interface ProjectEditorProps {
@@ -40,10 +41,16 @@ export function ProjectEditor({
   const boardRef = useRef<DrawingBoardHandle>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRefining, setIsRefining] = useState(false);
+  /** Selected game mode — an explicit choice is authoritative at generate. */
+  const [mode, setMode] = useState<GameModeValue>(gameType ?? "auto");
   const [result, setResult] = useState<GenerateGameResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  /** Remount the play canvas when generate/refine produces a new GameSpec. */
+  const [gameRevision, setGameRevision] = useState(0);
+  /** After chat tweaks, restart play immediately so edits are obvious. */
+  const [autoPlay, setAutoPlay] = useState(false);
 
   const showSplit = isGenerating || result !== null || error !== null;
 
@@ -73,7 +80,8 @@ export function ProjectEditor({
 
     try {
       const canvasData = boardRef.current?.getCanvasData() ?? null;
-      const canvasImage = (await boardRef.current?.getScreenshot()) ?? null;
+      const rawScreenshot = (await boardRef.current?.getScreenshot()) ?? null;
+      const canvasImage = await compressScreenshotForVision(rawScreenshot);
 
       if (!canvasData && !canvasImage) {
         throw new Error(
@@ -86,10 +94,12 @@ export function ProjectEditor({
         canvasObjects: canvasData?.objects ?? [],
         canvasLabels: canvasData?.labels ?? [],
         userPrompt: description,
-        selectedGameType: gameType ?? "auto",
+        selectedGameType: mode,
         canvasDimensions: canvasData?.dimensions ?? { width: 1, height: 1 },
       });
       setResult(generated);
+      setAutoPlay(false);
+      setGameRevision((n) => n + 1);
       setChatMessages([
         {
           id: newMessageId(),
@@ -121,24 +131,49 @@ export function ProjectEditor({
     setError(null);
 
     try {
-      const canvasImage = (await boardRef.current?.getScreenshot()) ?? null;
       const history = [...chatMessages, userMessage]
         .slice(-8)
         .map(({ role, content }) => ({ role, content }));
 
-      const refined = await refineGame({
-        message,
-        gameSpec: result.gameSpec,
-        interpretationSummary: result.interpretationSummary,
-        canvasImage,
-        history,
-      });
-
-      setResult({
-        gameSpec: refined.gameSpec,
-        interpretationSummary: result.interpretationSummary,
-        warnings: refined.warnings,
-      });
+      let refined: {
+        assistantMessage: string;
+        warnings: string[];
+      };
+      if (result.rendererType === "tic-tac-toe") {
+        // Tic-tac-toe chat edits only touch its own config schema.
+        const tttRefined = await refineTicTacToe({
+          message,
+          spec: result.gameSpec,
+          history,
+        });
+        refined = tttRefined;
+        setResult({
+          rendererType: "tic-tac-toe",
+          gameSpec: tttRefined.spec,
+          interpretationSummary: result.interpretationSummary,
+          warnings: tttRefined.warnings,
+        });
+      } else {
+        const canvasImage = await compressScreenshotForVision(
+          (await boardRef.current?.getScreenshot()) ?? null
+        );
+        const arcadeRefined = await refineGame({
+          message,
+          gameSpec: result.gameSpec,
+          interpretationSummary: result.interpretationSummary,
+          canvasImage,
+          history,
+        });
+        refined = arcadeRefined;
+        setResult({
+          rendererType: "arcade",
+          gameSpec: arcadeRefined.gameSpec,
+          interpretationSummary: result.interpretationSummary,
+          warnings: arcadeRefined.warnings,
+        });
+      }
+      setAutoPlay(true);
+      setGameRevision((n) => n + 1);
       setChatMessages((current) => [
         ...current,
         {
@@ -195,6 +230,8 @@ export function ProjectEditor({
           <GameDescriptionPanel
             value={description}
             onChange={setDescription}
+            mode={mode}
+            onModeChange={setMode}
             disabled={isGenerating}
           />
         </div>
@@ -202,7 +239,9 @@ export function ProjectEditor({
           <div className="h-full min-h-0 min-w-0 overflow-hidden">
             <LevelPanel
               isGenerating={isGenerating}
-              game={result?.gameSpec ?? null}
+              game={result}
+              gameRevision={gameRevision}
+              autoPlay={autoPlay}
               interpretation={result?.interpretationSummary ?? null}
               warnings={result?.warnings ?? []}
               error={error}

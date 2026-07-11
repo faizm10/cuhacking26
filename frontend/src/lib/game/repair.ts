@@ -5,6 +5,8 @@ import {
   type GameSpec,
   type SupportedGameType,
 } from "./schema";
+import { normalizeColorsInPlace } from "./colors";
+import { PLAYABLE_PLATFORMER_DEFAULTS } from "./platformer-physics";
 
 /**
  * Local, deterministic fixes for minor problems in a model-generated spec.
@@ -32,6 +34,7 @@ function intersects(a: GameRect, b: GameRect): boolean {
 /**
  * Clamp raw numbers BEFORE Zod validation so slightly-out-of-range values
  * (x: -4, width: 260) become valid instead of triggering a full retry.
+ * Also normalizes color strings (#fff, rgba, names → #rrggbb).
  * Operates on unknown JSON defensively — non-objects pass through untouched.
  */
 export function clampRawSpec(raw: unknown): unknown {
@@ -39,11 +42,13 @@ export function clampRawSpec(raw: unknown): unknown {
   const spec = structuredClone(raw) as Record<string, unknown>;
   const game = (spec.game ?? spec) as Record<string, unknown>;
 
-  const clampRect = (value: unknown) => {
+  normalizeColorsInPlace(game);
+
+  const clampRect = (value: unknown, maxWidth = 240) => {
     if (!value || typeof value !== "object") return;
     const rect = value as Record<string, unknown>;
     if (typeof rect.width === "number")
-      rect.width = clamp(rect.width, 8, 240);
+      rect.width = clamp(rect.width, 8, maxWidth);
     if (typeof rect.height === "number")
       rect.height = clamp(rect.height, 8, 240);
     if (typeof rect.x === "number")
@@ -53,11 +58,59 @@ export function clampRawSpec(raw: unknown): unknown {
   };
 
   clampRect(game.player);
-  for (const key of ["enemies", "obstacles", "collectibles", "platforms"]) {
+  for (const key of ["enemies", "collectibles"] as const) {
     const list = game[key];
-    if (Array.isArray(list)) list.forEach(clampRect);
+    if (Array.isArray(list)) list.forEach((item) => clampRect(item));
+  }
+  // Floors / walls may span the full world width.
+  for (const key of ["obstacles", "platforms"] as const) {
+    const list = game[key];
+    if (Array.isArray(list))
+      list.forEach((item) => clampRect(item, GAME_WORLD.width));
   }
   return spec;
+}
+
+/**
+ * Overlay a model-produced game patch onto the player's current GameSpec.
+ * Object fields deep-merge; arrays from the patch replace when provided.
+ * Keeps the live game intact when the model omits or corrupts a branch.
+ */
+export function mergeGamePatch(
+  base: GameSpec,
+  patch: unknown
+): Record<string, unknown> {
+  const merged = structuredClone(base) as unknown as Record<string, unknown>;
+  if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
+    return merged;
+  }
+
+  const overlay = (target: Record<string, unknown>, source: Record<string, unknown>) => {
+    for (const [key, value] of Object.entries(source)) {
+      if (value === undefined) continue;
+      if (Array.isArray(value)) {
+        target[key] = structuredClone(value);
+        continue;
+      }
+      if (
+        value &&
+        typeof value === "object" &&
+        target[key] &&
+        typeof target[key] === "object" &&
+        !Array.isArray(target[key])
+      ) {
+        overlay(
+          target[key] as Record<string, unknown>,
+          value as Record<string, unknown>
+        );
+        continue;
+      }
+      target[key] = structuredClone(value);
+    }
+  };
+
+  overlay(merged, patch as Record<string, unknown>);
+  return merged;
 }
 
 /** Keep an entity fully inside the world (position clamp accounts for size). */
@@ -154,6 +207,20 @@ function ensureWinnable(game: GameSpec, warnings: string[]): void {
   }
 }
 
+/** Make sure platform-jumpers have usable run/jump stats. */
+function ensurePlayablePlatformer(game: GameSpec, warnings: string[]): void {
+  if (game.gameType !== "platform-jumper") return;
+
+  if (game.player.jumpStrength < 200) {
+    game.player.jumpStrength = PLAYABLE_PLATFORMER_DEFAULTS.jumpStrength;
+    warnings.push("Boosted jump strength so the character can hop");
+  }
+  if (game.player.speed < 120) {
+    game.player.speed = PLAYABLE_PLATFORMER_DEFAULTS.speed;
+    warnings.push("Boosted move speed so the character can run");
+  }
+}
+
 /** Coerce an arbitrary requested type onto a supported template. */
 export function resolveGameType(
   requested: string | undefined | null
@@ -186,6 +253,7 @@ export function repairGameSpec(spec: GameSpec): RepairResult {
   fixPlayerSpawn(game, warnings);
   dedupeIds(game, warnings);
   ensureWinnable(game, warnings);
+  ensurePlayablePlatformer(game, warnings);
 
   return { game, warnings };
 }
