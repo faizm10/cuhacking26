@@ -1,50 +1,63 @@
-import type { GenerateResponse } from "@/types";
+import type { CanvasLabel, CanvasObject } from "@/lib/game/request";
+import type { GameSpec } from "@/lib/game/schema";
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:8080";
+/**
+ * Client for POST /api/generate-game (same-origin Next.js route). The OpenAI
+ * key lives server-side only — nothing secret happens here.
+ */
 
-interface GenerateGameInput {
-  projectId: string;
-  shapes: Record<string, unknown>[];
-  screenshot?: string | null;
-  prompt?: string;
-  selectedGameType?: string;
+export interface GenerateGameInput {
+  canvasImage: string | null;
+  canvasObjects: CanvasObject[];
+  canvasLabels: CanvasLabel[];
+  userPrompt: string;
+  selectedGameType: string;
+  canvasDimensions: { width: number; height: number };
 }
 
-async function readApiError(response: Response): Promise<string> {
-  try {
-    const body = (await response.json()) as {
-      error?: { message?: string; code?: string };
-    };
-    if (body.error?.message) return body.error.message;
-  } catch {
-    // ignore parse failures
-  }
-  return `Generate failed (${response.status})`;
+export interface GenerateGameResult {
+  gameSpec: GameSpec;
+  interpretationSummary: string;
+  warnings: string[];
+}
+
+interface ApiFailure {
+  success: false;
+  error?: { code?: string; message?: string };
 }
 
 export async function generateGame(
   input: GenerateGameInput
-): Promise<GenerateResponse> {
-  if (!input.screenshot && input.shapes.length === 0) {
-    throw new Error("Draw something on the canvas before generating");
-  }
-
-  const response = await fetch(`${API_BASE}/api/games/generate`, {
+): Promise<GenerateGameResult> {
+  const response = await fetch("/api/generate-game", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      projectId: input.projectId,
-      prompt: input.prompt ?? "",
-      selectedGameType: input.selectedGameType,
-      shapes: input.shapes,
-      ...(input.screenshot ? { screenshot: input.screenshot } : {}),
-    }),
+    body: JSON.stringify(input),
   });
 
-  if (!response.ok) {
-    throw new Error(await readApiError(response));
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    throw new Error("The game generator sent back an unreadable response.");
   }
 
-  return (await response.json()) as GenerateResponse;
+  const result = body as { success?: boolean } & Partial<GenerateGameResult> &
+    ApiFailure;
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.error?.message ?? "Game generation failed. Please try again."
+    );
+  }
+
+  if (!result.gameSpec) {
+    throw new Error("The game generator returned an empty game.");
+  }
+
+  return {
+    gameSpec: result.gameSpec,
+    interpretationSummary: result.interpretationSummary ?? "",
+    warnings: result.warnings ?? [],
+  };
 }
