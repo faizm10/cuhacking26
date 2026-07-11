@@ -5,7 +5,7 @@ import {
   type GenerateResponse,
 } from "../schemas/generate.js";
 import { saveGeneratedLevel } from "../services/firestore.js";
-import { generateLevel } from "../services/gemini.js";
+import { generateGame } from "../services/gemini.js";
 import { uploadScreenshot } from "../services/storage.js";
 import { BadRequestError } from "../utils/errors.js";
 
@@ -15,7 +15,7 @@ export function gamesRoutes(app: FastifyInstance): void {
     if (!parsed.success) {
       throw new BadRequestError("Invalid request body", parsed.error.issues);
     }
-    const { projectId, prompt, screenshot, shapes } = parsed.data;
+    const { projectId, prompt, screenshot, selectedGameType, shapes } = parsed.data;
 
     // Screenshot upload is best-effort: a storage hiccup shouldn't cost the
     // user their generation.
@@ -28,10 +28,11 @@ export function gamesRoutes(app: FastifyInstance): void {
       }
     }
 
-    const { level, source } = await generateLevel({
+    const { game, source } = await generateGame({
       prompt,
       shapes,
       screenshot,
+      selectedGameType,
     });
 
     // Persistence is best-effort too — the level is already in hand.
@@ -42,12 +43,12 @@ export function gamesRoutes(app: FastifyInstance): void {
         prompt,
         source,
         screenshotUrl,
-        level,
+        game,
       });
     } catch (error) {
       request.log.warn({ err: error }, "Failed to persist level, continuing");
     }
 
-    return { source, levelId, screenshotUrl, level };
+    return { source, levelId, screenshotUrl, game };
   });
 }

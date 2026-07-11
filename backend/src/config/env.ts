@@ -14,7 +14,7 @@ const envSchema = z
       .default("false")
       .transform((value) => value === "true"),
     GEMINI_API_KEY: z.string().optional(),
-    GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
+    GEMINI_MODEL: z.string().default("gemini-3.5-flash"),
 
     /** Enables Firestore persistence. Set automatically on Cloud Run. */
     GOOGLE_CLOUD_PROJECT: z.string().optional(),

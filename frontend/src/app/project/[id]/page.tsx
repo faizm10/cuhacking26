@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 
-import { DrawingBoard } from "@/components/canvas/DrawingBoard";
-import { EditorTopBar } from "@/components/canvas/EditorTopBar";
+import { ProjectEditor } from "@/components/canvas/ProjectEditor";
 import { GAME_TYPE_LABELS, MOCK_PROJECTS } from "@/lib/mock-data/projects";
 import type { GameType } from "@/types";
 
@@ -25,22 +24,20 @@ export default async function ProjectPage({
   // they arrive via query params. Replace both paths with a Supabase query.
   const project = MOCK_PROJECTS.find((p) => p.id === id);
   const projectName = project?.name ?? name ?? "Untitled game";
-  const gameType = project?.gameType ?? (type as GameType | undefined);
+  const queryGameType =
+    type && type in GAME_TYPE_LABELS ? (type as GameType) : undefined;
+  const gameType = project?.gameType ?? queryGameType;
   const gameTypeLabel =
     gameType && gameType in GAME_TYPE_LABELS
       ? GAME_TYPE_LABELS[gameType]
       : undefined;
 
   return (
-    <div className="flex h-screen flex-col">
-      <EditorTopBar
-        projectId={id}
-        projectName={projectName}
-        gameTypeLabel={gameTypeLabel}
-      />
-      <main className="relative flex-1">
-        <DrawingBoard persistenceKey={`playbox-${id}`} />
-      </main>
-    </div>
+    <ProjectEditor
+      projectId={id}
+      projectName={projectName}
+      gameType={gameType}
+      gameTypeLabel={gameTypeLabel}
+    />
   );
 }

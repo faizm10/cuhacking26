@@ -1,0 +1,36 @@
+"use client";
+
+import { Label } from "@/components/ui/label";
+
+interface GameDescriptionPanelProps {
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}
+
+export function GameDescriptionPanel({
+  value,
+  onChange,
+  disabled,
+}: GameDescriptionPanelProps) {
+  return (
+    <div className="shrink-0 border-t border-border bg-background px-3 py-2.5">
+      <Label htmlFor="game-description" className="text-xs text-muted-foreground">
+        What should happen in this game?
+      </Label>
+      <textarea
+        id="game-description"
+        value={value}
+        disabled={disabled}
+        rows={2}
+        placeholder="Collect every coin, avoid the enemies, and reach the flag."
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-1.5 w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+      />
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        Tip: use the text tool on the canvas to label Player, Enemy, Coin, Goal,
+        and write short instructions near your sketch.
+      </p>
+    </div>
+  );
+}

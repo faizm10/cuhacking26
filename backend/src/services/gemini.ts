@@ -1,20 +1,30 @@
 import { GoogleGenAI, type Content } from "@google/genai";
 
 import { env } from "../config/env.js";
-import { buildLevelPrompt, buildRepairPrompt } from "../prompts/level-prompt.js";
-import { levelJsonSchema, levelSchema, type Level } from "../schemas/level.js";
+import {
+  buildGamePrompt,
+  buildGameRepairPrompt,
+} from "../lib/game/prompts/game-prompt.js";
+import {
+  gameSpecJsonSchema,
+  gameSpecSchema,
+  supportedGameTypes,
+  type GameSpec,
+  type SupportedGameType,
+} from "../lib/game/schema/game.js";
 import { InvalidLevelError, UpstreamError } from "../utils/errors.js";
-import { getMockLevel } from "../utils/mock-level.js";
+import { getMockGame } from "../utils/mock-game.js";
 
-export interface GenerateLevelInput {
+export interface GenerateGameInput {
   prompt: string;
   shapes: Record<string, unknown>[];
   /** Base64 image data URL of the canvas, if the client sent one. */
   screenshot?: string;
+  selectedGameType?: string;
 }
 
-export interface GenerateLevelResult {
-  level: Level;
+export interface GenerateGameResult {
+  game: GameSpec;
   source: "gemini" | "mock";
 }
 
@@ -44,7 +54,7 @@ async function callModel(contents: Content[]): Promise<string> {
       contents,
       config: {
         responseMimeType: "application/json",
-        responseJsonSchema: levelJsonSchema,
+        responseSchema: gameSpecJsonSchema,
         temperature: 0.6,
       },
     });
@@ -60,14 +70,14 @@ async function callModel(contents: Content[]): Promise<string> {
   return text;
 }
 
-function parseLevel(text: string): Level | { issues: string } {
+function parseGame(text: string): GameSpec | { issues: string } {
   let json: unknown;
   try {
     json = JSON.parse(text);
   } catch {
     return { issues: "Response was not valid JSON." };
   }
-  const result = levelSchema.safeParse(json);
+  const result = gameSpecSchema.safeParse(json);
   if (!result.success) {
     return {
       issues: result.error.issues
@@ -78,21 +88,27 @@ function parseLevel(text: string): Level | { issues: string } {
   return result.data;
 }
 
+function parseSelectedGameType(value: string | undefined): SupportedGameType | undefined {
+  if (!value) return undefined;
+  return supportedGameTypes.find((type) => type === value);
+}
+
 /**
- * Turn a sketch into a validated platformer level. Retries once with the
+ * Turn a sketch into a validated game specification. Retries once with the
  * validation errors when Gemini's first answer doesn't match the schema.
  */
-export async function generateLevel(
-  input: GenerateLevelInput
-): Promise<GenerateLevelResult> {
+export async function generateGame(
+  input: GenerateGameInput
+): Promise<GenerateGameResult> {
   if (env.USE_MOCK_GEMINI) {
-    return { level: getMockLevel(), source: "mock" };
+    return { game: getMockGame(input.selectedGameType), source: "mock" };
   }
 
-  const instruction = buildLevelPrompt({
+  const instruction = buildGamePrompt({
     prompt: input.prompt,
     shapes: input.shapes,
     hasScreenshot: Boolean(input.screenshot),
+    selectedGameType: parseSelectedGameType(input.selectedGameType),
   });
 
   const userParts = input.screenshot
@@ -101,21 +117,21 @@ export async function generateLevel(
   const conversation: Content[] = [{ role: "user", parts: userParts }];
 
   const firstText = await callModel(conversation);
-  const first = parseLevel(firstText);
+  const first = parseGame(firstText);
   if (!("issues" in first)) {
-    return { level: first, source: "gemini" };
+    return { game: first, source: "gemini" };
   }
 
   // One repair round: show the model its own output and the exact failures.
   conversation.push(
     { role: "model", parts: [{ text: firstText }] },
-    { role: "user", parts: [{ text: buildRepairPrompt(first.issues) }] }
+    { role: "user", parts: [{ text: buildGameRepairPrompt(first.issues) }] }
   );
 
   const secondText = await callModel(conversation);
-  const second = parseLevel(secondText);
+  const second = parseGame(secondText);
   if (!("issues" in second)) {
-    return { level: second, source: "gemini" };
+    return { game: second, source: "gemini" };
   }
 
   throw new InvalidLevelError({ validationIssues: second.issues });

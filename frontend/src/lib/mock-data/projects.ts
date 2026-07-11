@@ -1,42 +1,20 @@
 import type { GameType, Project, ProjectStatus } from "@/types";
 
-// Temporary stand-in for Supabase data. Replace with a real query once the
-// `projects` table exists — the shape mirrors the intended schema.
+// Temporary stand-in for Supabase data. Starts empty so the dashboard shows
+// the empty state by default. Replace with a real query once the `projects`
+// table exists — the shape mirrors the intended schema.
 
-const daysAgo = (days: number) =>
-  new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-
-export const MOCK_PROJECTS: Project[] = [
-  {
-    id: "mock-1",
-    name: "Moon Jumper",
-    gameType: "platformer",
-    status: "playable",
-    thumbnailUrl: null,
-    updatedAt: daysAgo(0),
-  },
-  {
-    id: "mock-2",
-    name: "Sliding Sushi",
-    gameType: "puzzle",
-    status: "generating",
-    thumbnailUrl: null,
-    updatedAt: daysAgo(1),
-  },
-  {
-    id: "mock-3",
-    name: "Cave of Doodles",
-    gameType: "adventure",
-    status: "draft",
-    thumbnailUrl: null,
-    updatedAt: daysAgo(4),
-  },
-];
+export const MOCK_PROJECTS: Project[] = [];
 
 export const GAME_TYPE_LABELS: Record<GameType, string> = {
-  platformer: "Platformer",
-  puzzle: "Puzzle",
-  adventure: "Adventure",
+  dodge: "Dodge",
+  collect: "Collect",
+  pong: "Pong",
+  snake: "Snake",
+  maze: "Maze",
+  clicker: "Clicker",
+  "simple-shooter": "Simple shooter",
+  "platform-jumper": "Platform jumper",
 };
 
 export const GAME_TYPE_OPTIONS = (

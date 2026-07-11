@@ -1,22 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft, Loader2, Sparkles } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 interface EditorTopBarProps {
-  projectId: string;
   projectName: string;
   gameTypeLabel?: string;
+  isGenerating: boolean;
+  onGenerate: () => void;
 }
 
 export function EditorTopBar({
-  projectId,
   projectName,
   gameTypeLabel,
+  isGenerating,
+  onGenerate,
 }: EditorTopBarProps) {
   return (
     <header className="z-10 flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border bg-background px-3 sm:px-4">
@@ -39,16 +40,15 @@ export function EditorTopBar({
 
       <div className="flex items-center gap-2">
         <p className="hidden text-xs text-muted-foreground lg:block">
-          Sketch your level, then generate it into a game
+          Sketch, label with text, describe the game, then generate
         </p>
-        <Button
-          onClick={() =>
-            // AI generation lands here in the next milestone.
-            console.log("Generate game from sketch", projectId)
-          }
-        >
-          <Sparkles data-icon="inline-start" className={cn("size-4")} />
-          Generate
+        <Button onClick={onGenerate} disabled={isGenerating}>
+          {isGenerating ? (
+            <Loader2 data-icon="inline-start" className="size-4 animate-spin" />
+          ) : (
+            <Sparkles data-icon="inline-start" className="size-4" />
+          )}
+          {isGenerating ? "Generating…" : "Generate"}
         </Button>
       </div>
     </header>

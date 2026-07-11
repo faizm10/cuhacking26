@@ -36,14 +36,14 @@ export function NewProjectModal({
   onCreate,
 }: NewProjectModalProps) {
   const [name, setName] = useState("");
-  const [gameType, setGameType] = useState<GameType>("platformer");
+  const [gameType, setGameType] = useState<GameType>("collect");
 
   const handleCreate = () => {
     const input: NewProjectInput = { name: name.trim(), gameType };
     console.log("Create project", input);
     onCreate(input);
     setName("");
-    setGameType("platformer");
+    setGameType("collect");
     onOpenChange(false);
   };
 

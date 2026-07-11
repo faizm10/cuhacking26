@@ -16,8 +16,9 @@ const position = z.object({
 });
 
 const rect = position.extend({
-  width: z.number().positive(),
-  height: z.number().positive(),
+  // Use min(1) instead of positive() — Gemini rejects exclusiveMinimum.
+  width: z.number().min(1),
+  height: z.number().min(1),
 });
 
 export const platformSchema = rect.extend({
@@ -55,5 +56,34 @@ export type Platform = z.infer<typeof platformSchema>;
 export type Hazard = z.infer<typeof hazardSchema>;
 export type Enemy = z.infer<typeof enemySchema>;
 
-/** JSON Schema equivalent, passed to Gemini as the structured-output schema. */
-export const levelJsonSchema = z.toJSONSchema(levelSchema);
+/**
+ * Gemini's responseSchema rejects some JSON Schema keywords Zod emits
+ * (exclusiveMinimum, maxItems, $schema). Strip those before sending.
+ */
+function toGeminiSchema(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(toGeminiSchema);
+  if (!node || typeof node !== "object") return node;
+
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    if (
+      key === "$schema" ||
+      key === "exclusiveMinimum" ||
+      key === "exclusiveMaximum" ||
+      key === "maxItems"
+    ) {
+      continue;
+    }
+    if (key === "type" && value === "integer") {
+      out.type = "number";
+      continue;
+    }
+    out[key] = toGeminiSchema(value);
+  }
+  return out;
+}
+
+/** JSON Schema for Gemini structured output. */
+export const levelJsonSchema = toGeminiSchema(
+  z.toJSONSchema(levelSchema)
+) as Record<string, unknown>;

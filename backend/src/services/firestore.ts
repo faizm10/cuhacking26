@@ -1,7 +1,7 @@
 import { FieldValue, Firestore } from "@google-cloud/firestore";
 
 import { env } from "../config/env.js";
-import type { Level } from "../schemas/level.js";
+import type { GameSpec } from "../lib/game/schema/game.js";
 
 /**
  * Firestore persistence for projects and generated levels.
@@ -45,7 +45,7 @@ export interface SaveLevelInput {
   prompt: string;
   source: "gemini" | "mock";
   screenshotUrl: string | null;
-  level: Level;
+  game: GameSpec;
 }
 
 /** Persist a generated level. Returns the new document id, or null when disabled. */
@@ -60,7 +60,7 @@ export async function saveGeneratedLevel(
     prompt: input.prompt,
     source: input.source,
     screenshotUrl: input.screenshotUrl,
-    level: input.level,
+    game: input.game,
     createdAt: FieldValue.serverTimestamp(),
   });
 
@@ -114,7 +114,7 @@ export async function getProject(id: string): Promise<ProjectRecord | null> {
 export async function listProjectLevels(
   projectId: string,
   limit = 10
-): Promise<{ id: string; level: Level; createdAt: unknown }[]> {
+): Promise<{ id: string; game: GameSpec; createdAt: unknown }[]> {
   const firestore = getDb();
   if (!firestore) return [];
 
@@ -129,7 +129,7 @@ export async function listProjectLevels(
     const data = doc.data();
     return {
       id: doc.id,
-      level: data.level as Level,
+      game: data.game as GameSpec,
       createdAt: data.createdAt ?? null,
     };
   });

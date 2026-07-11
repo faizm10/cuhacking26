@@ -1,12 +1,17 @@
 "use client";
 
 import {
+  CircleDollarSign,
   Copy,
+  Crosshair,
   Gamepad2,
   Map,
+  MousePointerClick,
   MoreVertical,
   Pencil,
   Puzzle,
+  ShieldAlert,
+  SquareDashedMousePointer,
   Trash2,
   type LucideIcon,
 } from "lucide-react";
@@ -26,15 +31,25 @@ import { cn } from "@/lib/utils";
 import type { GameType, Project, ProjectStatus } from "@/types";
 
 const GAME_TYPE_ICONS: Record<GameType, LucideIcon> = {
-  platformer: Gamepad2,
-  puzzle: Puzzle,
-  adventure: Map,
+  dodge: ShieldAlert,
+  collect: CircleDollarSign,
+  pong: Gamepad2,
+  snake: Puzzle,
+  maze: Map,
+  clicker: MousePointerClick,
+  "simple-shooter": Crosshair,
+  "platform-jumper": SquareDashedMousePointer,
 };
 
 const THUMBNAIL_GRADIENTS: Record<GameType, string> = {
-  platformer: "from-primary/25 via-accent to-secondary",
-  puzzle: "from-chart-2/25 via-accent to-secondary",
-  adventure: "from-chart-3/25 via-accent to-secondary",
+  dodge: "from-rose-500/20 via-accent to-secondary",
+  collect: "from-amber-400/25 via-accent to-secondary",
+  pong: "from-sky-400/20 via-accent to-secondary",
+  snake: "from-emerald-400/20 via-accent to-secondary",
+  maze: "from-chart-3/25 via-accent to-secondary",
+  clicker: "from-fuchsia-400/20 via-accent to-secondary",
+  "simple-shooter": "from-red-500/20 via-accent to-secondary",
+  "platform-jumper": "from-primary/25 via-accent to-secondary",
 };
 
 const STATUS_STYLES: Record<ProjectStatus, string> = {

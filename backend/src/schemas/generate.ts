@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { Level } from "./level.js";
+import { supportedGameTypes, type GameSpec } from "../lib/game/schema/game.js";
 
 const DATA_URL_PATTERN = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/;
 
@@ -10,6 +10,8 @@ export const generateRequestSchema = z
     projectId: z.string().min(1).max(128).optional(),
     /** Freeform gameplay prompt from the user. */
     prompt: z.string().max(2000).default(""),
+    /** Optional selected template from the project setup. */
+    selectedGameType: z.enum(supportedGameTypes).optional(),
     /** Canvas screenshot as a base64 data URL (png, jpeg, or webp). */
     screenshot: z
       .string()
@@ -34,5 +36,5 @@ export interface GenerateResponse {
   source: "gemini" | "mock";
   levelId: string | null;
   screenshotUrl: string | null;
-  level: Level;
+  game: GameSpec;
 }
