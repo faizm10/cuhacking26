@@ -1,10 +1,22 @@
 "use client";
 
-import { RotateCcw, Pause, Play } from "lucide-react";
+import { Pause, Play, RotateCcw, Trophy } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { center, clamp, contains, intersects } from "@/lib/game/systems/geometry";
+import {
+  drawEntity,
+  drawPlatform,
+  drawScene,
+  shade,
+} from "@/components/game/renderers/cartoon";
+import { resetBall, stepBall } from "@/lib/game/systems/ball";
+import {
+  center,
+  clamp,
+  contains,
+  intersects,
+} from "@/lib/game/systems/geometry";
 import type {
   GameCollectible,
   GameEnemy,
@@ -18,7 +30,10 @@ interface RuntimeEnemy extends GameEnemy {
   originX: number;
   originY: number;
   dir: number;
+  vx: number;
+  vy: number;
   alive: boolean;
+  phase: number;
 }
 
 interface RuntimeProjectile extends GameRect {
@@ -33,22 +48,42 @@ interface Particle {
   vx: number;
   vy: number;
   life: number;
+  maxLife: number;
+  size: number;
   color: string;
 }
 
+interface Floater {
+  x: number;
+  y: number;
+  text: string;
+  life: number;
+}
+
+type Status = "ready" | "playing" | "paused" | "won" | "lost";
+
 interface RuntimeState {
-  player: GameRect & { color: string; vx: number; vy: number; grounded: boolean };
+  player: GameRect & {
+    color: string;
+    vx: number;
+    vy: number;
+    grounded: boolean;
+    squash: number;
+    facing: number;
+  };
   enemies: RuntimeEnemy[];
-  collectibles: (GameCollectible & { collected: boolean })[];
+  collectibles: (GameCollectible & { collected: boolean; phase: number })[];
   projectiles: RuntimeProjectile[];
   particles: Particle[];
+  floaters: Floater[];
   score: number;
   lives: number;
   elapsed: number;
   lastShot: number;
   damageCooldown: number;
-  status: "playing" | "paused" | "won" | "lost";
-  message: string;
+  shake: number;
+  flash: number;
+  status: Status;
 }
 
 interface CanvasGameProps {
@@ -57,109 +92,71 @@ interface CanvasGameProps {
 
 function createState(game: GameSpec): RuntimeState {
   return {
-    player: { ...game.player, vx: 0, vy: 0, grounded: false },
-    enemies: game.enemies.map((enemy) => ({
+    player: {
+      ...game.player,
+      vx: 0,
+      vy: 0,
+      grounded: false,
+      squash: 1,
+      facing: 1,
+    },
+    enemies: game.enemies.map((enemy, index) => ({
       ...enemy,
       originX: enemy.x,
       originY: enemy.y,
       dir: 1,
+      vx: enemy.speed * (index % 2 === 0 ? 1 : -1),
+      vy: enemy.speed * 0.7,
       alive: true,
+      phase: index * 1.7,
     })),
-    collectibles: game.collectibles.map((item) => ({ ...item, collected: false })),
+    collectibles: game.collectibles.map((item, index) => ({
+      ...item,
+      collected: false,
+      phase: index * 1.3,
+    })),
     projectiles: [],
     particles: [],
+    floaters: [],
     score: game.scoring.start,
     lives: game.lives,
     elapsed: 0,
     lastShot: -9999,
     damageCooldown: 0,
-    status: "playing",
-    message: game.objective,
+    shake: 0,
+    flash: 0,
+    status: "ready",
   };
 }
 
-function drawRoundRect(
-  ctx: CanvasRenderingContext2D,
+function spawnBurst(
+  state: RuntimeState,
   rect: GameRect,
   color: string,
-  radius = 8
+  count = 12
 ) {
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.roundRect(rect.x, rect.y, rect.width, rect.height, radius);
-  ctx.fill();
-}
-
-function drawBackground(ctx: CanvasRenderingContext2D, game: GameSpec) {
-  ctx.fillStyle = game.visualTheme.background.color;
-  ctx.fillRect(0, 0, WORLD.width, WORLD.height);
-
-  ctx.globalAlpha = 0.18;
-  ctx.strokeStyle = game.visualTheme.accentColor;
-  ctx.fillStyle = game.visualTheme.accentColor;
-
-  if (game.visualTheme.background.pattern === "grid") {
-    for (let x = 0; x <= WORLD.width; x += 48) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, WORLD.height);
-      ctx.stroke();
-    }
-    for (let y = 0; y <= WORLD.height; y += 48) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(WORLD.width, y);
-      ctx.stroke();
-    }
-  } else if (game.visualTheme.background.pattern === "stars") {
-    for (let i = 0; i < 90; i += 1) {
-      const x = (i * 97) % WORLD.width;
-      const y = (i * 53) % WORLD.height;
-      ctx.fillRect(x, y, 2, 2);
-    }
-  } else if (game.visualTheme.background.pattern === "dots") {
-    for (let x = 24; x < WORLD.width; x += 56) {
-      for (let y = 24; y < WORLD.height; y += 56) {
-        ctx.beginPath();
-        ctx.arc(x, y, 2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-  } else if (game.visualTheme.background.pattern === "stripes") {
-    for (let x = -WORLD.height; x < WORLD.width; x += 72) {
-      ctx.beginPath();
-      ctx.moveTo(x, WORLD.height);
-      ctx.lineTo(x + WORLD.height, 0);
-      ctx.stroke();
-    }
-  }
-
-  ctx.globalAlpha = 1;
-}
-
-function drawLabel(ctx: CanvasRenderingContext2D, label: string, rect: GameRect) {
-  if (!label) return;
-  ctx.fillStyle = "rgba(255,255,255,0.86)";
-  ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText(label.slice(0, 18), rect.x + rect.width / 2, rect.y - 5);
-}
-
-function spawnParticles(state: RuntimeState, rect: GameRect, color: string) {
   const c = center(rect);
-  for (let i = 0; i < 10; i += 1) {
+  for (let i = 0; i < count; i += 1) {
+    const angle = (i / count) * Math.PI * 2 + Math.random() * 0.5;
+    const speed = 90 + Math.random() * 120;
     state.particles.push({
       x: c.x,
       y: c.y,
-      vx: Math.cos(i * 0.9) * (60 + i * 8),
-      vy: Math.sin(i * 0.9) * (60 + i * 8),
-      life: 0.45,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 40,
+      life: 0.55,
+      maxLife: 0.55,
+      size: 3 + Math.random() * 4,
       color,
     });
   }
 }
 
-function blockAgainst(player: RuntimeState["player"], previous: GameRect, blockers: GameRect[]) {
+function blockAgainst(
+  player: RuntimeState["player"],
+  previous: GameRect,
+  blockers: GameRect[]
+) {
   for (const blocker of blockers) {
     if (!intersects(player, blocker)) continue;
     const fromLeft = previous.x + previous.width <= blocker.x;
@@ -170,6 +167,7 @@ function blockAgainst(player: RuntimeState["player"], previous: GameRect, blocke
     if (fromLeft) player.x = blocker.x - player.width;
     else if (fromRight) player.x = blocker.x + blocker.width;
     else if (fromTop) {
+      if (player.vy > 260) player.squash = 0.55; // landing squash
       player.y = blocker.y - player.height;
       player.vy = 0;
       player.grounded = true;
@@ -187,44 +185,85 @@ function solidRects(game: GameSpec): GameRect[] {
   ];
 }
 
+
+const START_KEYS = new Set([
+  "enter",
+  " ",
+  "arrowup",
+  "arrowdown",
+  "arrowleft",
+  "arrowright",
+  "w",
+  "a",
+  "s",
+  "d",
+]);
+
 export function CanvasGame({ game }: CanvasGameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stateRef = useRef<RuntimeState>(createState(game));
   const keysRef = useRef(new Set<string>());
-  const pointerRef = useRef<{ x: number; y: number; down: boolean } | null>(null);
+  const pointerRef = useRef<{ x: number; y: number; down: boolean } | null>(
+    null
+  );
   const frameRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number | null>(null);
-  const [uiStatus, setUiStatus] = useState<RuntimeState["status"]>("playing");
+  const [uiStatus, setUiStatus] = useState<Status>("ready");
+  const [uiScore, setUiScore] = useState(game.scoring.start);
 
   const blockers = useMemo(() => solidRects(game), [game]);
   const isPlatformer = game.gameType === "platform-jumper";
   const isClicker = game.gameType === "clicker";
+  const isPong = game.gameType === "pong";
 
-  const reset = useCallback(() => {
-    stateRef.current = createState(game);
-    lastTimeRef.current = null;
-    setUiStatus("playing");
-  }, [game]);
+  const setStatus = useCallback((state: RuntimeState, status: Status) => {
+    state.status = status;
+    setUiStatus(status);
+  }, []);
+
+  const start = useCallback(() => {
+    const state = stateRef.current;
+    if (state.status === "ready" || state.status === "paused") {
+      setStatus(state, "playing");
+    }
+  }, [setStatus]);
+
+  const reset = useCallback(
+    (autoStart = false) => {
+      stateRef.current = createState(game);
+      lastTimeRef.current = null;
+      setUiScore(game.scoring.start);
+      if (autoStart) stateRef.current.status = "playing";
+      setUiStatus(stateRef.current.status);
+    },
+    [game]
+  );
 
   const togglePause = useCallback(() => {
     const state = stateRef.current;
-    if (state.status === "won" || state.status === "lost") return;
-    state.status = state.status === "paused" ? "playing" : "paused";
-    state.message = state.status === "paused" ? "Paused" : game.objective;
-    setUiStatus(state.status);
-  }, [game.objective]);
+    if (state.status === "playing") setStatus(state, "paused");
+    else if (state.status === "paused") setStatus(state, "playing");
+  }, [setStatus]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() === "p") {
+      const key = event.key.toLowerCase();
+      const state = stateRef.current;
+      if (state.status === "ready" && START_KEYS.has(key)) {
+        event.preventDefault();
+        start();
+        return;
+      }
+      if (key === "p") {
         togglePause();
         return;
       }
-      if (event.key.toLowerCase() === "r") {
-        reset();
+      if (key === "r") {
+        reset(true);
         return;
       }
-      keysRef.current.add(event.key.toLowerCase());
+      if (key === " ") event.preventDefault();
+      keysRef.current.add(key);
     };
     const onKeyUp = (event: KeyboardEvent) => {
       keysRef.current.delete(event.key.toLowerCase());
@@ -235,7 +274,7 @@ export function CanvasGame({ game }: CanvasGameProps) {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [reset, togglePause]);
+  }, [reset, start, togglePause]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -250,15 +289,36 @@ export function CanvasGame({ game }: CanvasGameProps) {
     };
 
     const onPointerDown = (event: PointerEvent) => {
-      canvas.setPointerCapture(event.pointerId);
+      try {
+        canvas.setPointerCapture(event.pointerId);
+      } catch {
+        // A fast tap can release the pointer before we capture it — the
+        // drag still works without capture, so keep going.
+      }
       pointerRef.current = { ...toWorld(event), down: true };
-      if (isClicker) {
-        const state = stateRef.current;
+      const state = stateRef.current;
+      if (state.status === "ready") {
+        start();
+        return;
+      }
+      if (isClicker && state.status === "playing") {
         for (const item of state.collectibles) {
-          if (!item.collected && contains(item, pointerRef.current.x, pointerRef.current.y)) {
+          if (
+            !item.collected &&
+            contains(item, pointerRef.current.x, pointerRef.current.y)
+          ) {
             item.collected = true;
             state.score += item.points;
-            spawnParticles(state, item, item.color);
+            setUiScore(state.score);
+            if (game.feel.particles) spawnBurst(state, item, item.color);
+            if (game.feel.collectAnimation) {
+              state.floaters.push({
+                x: item.x + item.width / 2,
+                y: item.y,
+                text: `+${item.points}`,
+                life: 0.8,
+              });
+            }
           }
         }
       }
@@ -281,7 +341,7 @@ export function CanvasGame({ game }: CanvasGameProps) {
       canvas.removeEventListener("pointerup", onPointerUp);
       canvas.removeEventListener("pointercancel", onPointerUp);
     };
-  }, [isClicker]);
+  }, [game, isClicker, start]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -289,26 +349,32 @@ export function CanvasGame({ game }: CanvasGameProps) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const damagePlayer = (state: RuntimeState, message: string) => {
+    const damagePlayer = (state: RuntimeState) => {
       if (state.damageCooldown > 0) return;
       if (game.collisionRules.playerHitsEnemy === "ignore") return;
-      state.damageCooldown = 0.9;
+      state.damageCooldown = 1.1;
       state.lives -= 1;
-      state.message = message;
-      spawnParticles(state, state.player, "#ffffff");
+      if (game.feel.particles) spawnBurst(state, state.player, "#ffffff", 14);
+      if (game.feel.screenShake) state.shake = 0.35;
+      if (game.feel.hitFlash) state.flash = 0.4;
       state.player.x = game.player.x;
       state.player.y = game.player.y;
       state.player.vx = 0;
       state.player.vy = 0;
-      if (state.lives <= 0 || game.collisionRules.playerHitsEnemy === "lose-game") {
-        state.status = "lost";
-        state.message = game.loseCondition;
-        setUiStatus("lost");
+      if (
+        state.lives <= 0 ||
+        game.collisionRules.playerHitsEnemy === "lose-game"
+      ) {
+        setStatus(state, "lost");
       }
     };
 
     const shoot = (state: RuntimeState, now: number) => {
-      if (!game.projectiles.enabled || now - state.lastShot < game.projectiles.cooldownMs) return;
+      if (
+        !game.projectiles.enabled ||
+        now - state.lastShot < game.projectiles.cooldownMs
+      )
+        return;
       state.lastShot = now;
       const playerCenter = center(state.player);
       let vx = 0;
@@ -337,6 +403,9 @@ export function CanvasGame({ game }: CanvasGameProps) {
 
     const update = (dt: number, now: number) => {
       const state = stateRef.current;
+      state.shake = Math.max(0, state.shake - dt);
+      state.flash = Math.max(0, state.flash - dt);
+      state.player.squash += (1 - state.player.squash) * Math.min(1, dt * 10);
       if (state.status !== "playing") return;
 
       state.elapsed += dt;
@@ -350,6 +419,9 @@ export function CanvasGame({ game }: CanvasGameProps) {
       const down = keys.has("arrowdown") || keys.has("s");
       const fire = keys.has(" ") || keys.has("spacebar");
 
+      if (left) state.player.facing = -1;
+      if (right) state.player.facing = 1;
+
       if (pointerRef.current?.down && game.controls.touch.includes("drag")) {
         state.player.x = pointerRef.current.x - state.player.width / 2;
         state.player.y = pointerRef.current.y - state.player.height / 2;
@@ -360,6 +432,14 @@ export function CanvasGame({ game }: CanvasGameProps) {
         if (up && state.player.grounded) {
           state.player.vy = -Math.max(260, game.player.jumpStrength);
           state.player.grounded = false;
+          state.player.squash = 1.35; // jump stretch
+          if (game.feel.particles)
+            spawnBurst(
+              state,
+              { ...state.player, y: state.player.y + state.player.height - 4 },
+              "#ffffff",
+              5
+            );
         }
         state.player.vy += 1500 * dt;
         state.player.x += state.player.vx * dt;
@@ -383,23 +463,80 @@ export function CanvasGame({ game }: CanvasGameProps) {
 
       if (game.collisionRules.outOfBounds === "wrap") {
         if (state.player.x > WORLD.width) state.player.x = -state.player.width;
-        if (state.player.x + state.player.width < 0) state.player.x = WORLD.width;
+        if (state.player.x + state.player.width < 0)
+          state.player.x = WORLD.width;
         if (state.player.y > WORLD.height) state.player.y = -state.player.height;
-        if (state.player.y + state.player.height < 0) state.player.y = WORLD.height;
+        if (state.player.y + state.player.height < 0)
+          state.player.y = WORLD.height;
       } else {
         state.player.x = clamp(state.player.x, 0, WORLD.width - state.player.width);
-        state.player.y = clamp(state.player.y, 0, WORLD.height - state.player.height);
-        if (state.player.y >= WORLD.height - state.player.height) state.player.grounded = true;
+        state.player.y = clamp(
+          state.player.y,
+          0,
+          WORLD.height - state.player.height
+        );
+        if (state.player.y >= WORLD.height - state.player.height)
+          state.player.grounded = true;
       }
 
       for (const enemy of state.enemies) {
         if (!enemy.alive) continue;
-        if (enemy.movement === "patrol-horizontal" || enemy.movement === "bounce") {
+        if (enemy.movement === "patrol-horizontal") {
           enemy.x += enemy.dir * enemy.speed * dt;
-          if (Math.abs(enemy.x - enemy.originX) > enemy.patrolDistance / 2) enemy.dir *= -1;
-        } else if (enemy.movement === "patrol-vertical" || enemy.movement === "fall") {
+          if (Math.abs(enemy.x - enemy.originX) > enemy.patrolDistance / 2)
+            enemy.dir *= -1;
+        } else if (enemy.movement === "patrol-vertical") {
           enemy.y += enemy.dir * enemy.speed * dt;
-          if (Math.abs(enemy.y - enemy.originY) > enemy.patrolDistance / 2) enemy.dir *= -1;
+          if (Math.abs(enemy.y - enemy.originY) > enemy.patrolDistance / 2)
+            enemy.dir *= -1;
+        } else if (enemy.movement === "bounce") {
+          // Ball physics: rebounds off walls, the player paddle, solid
+          // blocks, and other enemies (e.g. an AI paddle).
+          const events = stepBall(enemy, dt, {
+            world: WORLD,
+            player: state.player,
+            surfaces: [
+              ...blockers,
+              ...state.enemies.filter(
+                (other) =>
+                  other !== enemy && other.alive && other.movement !== "bounce"
+              ),
+            ],
+            pong: isPong,
+          });
+
+          if (events.hitPaddle) {
+            if (game.feel.particles) spawnBurst(state, enemy, enemy.color, 6);
+            if (game.feel.bounce) state.player.squash = 0.75;
+          }
+          if (events.missedLeft) {
+            // Past your paddle: lose a life, re-serve toward you.
+            state.lives -= 1;
+            if (game.feel.screenShake) state.shake = 0.3;
+            if (game.feel.hitFlash) state.flash = 0.35;
+            resetBall(enemy, WORLD, enemy.speed, true);
+            if (state.lives <= 0) setStatus(state, "lost");
+          } else if (events.scoredRight) {
+            state.score += 1;
+            setUiScore(state.score);
+            if (game.feel.collectAnimation) {
+              state.floaters.push({
+                x: WORLD.width - 70,
+                y: 80,
+                text: "+1",
+                life: 0.8,
+              });
+            }
+            if (game.feel.particles) spawnBurst(state, enemy, enemy.color, 8);
+            resetBall(enemy, WORLD, enemy.speed, false);
+          }
+        } else if (enemy.movement === "fall") {
+          // Rain from the top, wrap around — classic dodge weather.
+          enemy.y += enemy.speed * dt;
+          if (enemy.y > WORLD.height) {
+            enemy.y = -enemy.height;
+            enemy.x = (enemy.x + 173) % (WORLD.width - enemy.width);
+          }
         } else if (enemy.movement === "chase-player") {
           const enemyCenter = center(enemy);
           const playerCenter = center(state.player);
@@ -409,27 +546,49 @@ export function CanvasGame({ game }: CanvasGameProps) {
           enemy.x += (dx / length) * enemy.speed * dt;
           enemy.y += (dy / length) * enemy.speed * dt;
         }
-        enemy.x = clamp(enemy.x, 0, WORLD.width - enemy.width);
-        enemy.y = clamp(enemy.y, 0, WORLD.height - enemy.height);
-        if (intersects(state.player, enemy)) damagePlayer(state, "Hit! You lost a life.");
+        if (enemy.movement !== "fall" && enemy.movement !== "bounce") {
+          enemy.x = clamp(enemy.x, 0, WORLD.width - enemy.width);
+          enemy.y = clamp(enemy.y, 0, WORLD.height - enemy.height);
+        }
+        if (state.damageCooldown <= 0 && intersects(state.player, enemy)) {
+          if (game.collisionRules.playerHitsEnemy === "bounce") {
+            // Paddles and bumpers rebound (handled above for balls); patrol
+            // enemies just turn around instead of hurting the player.
+            if (enemy.movement !== "bounce") enemy.dir *= -1;
+          } else {
+            damagePlayer(state);
+          }
+        }
       }
 
       for (const obstacle of game.obstacles) {
         if (!intersects(state.player, obstacle)) continue;
-        if (obstacle.kind === "hazard" || game.collisionRules.playerHitsObstacle === "lose-life") {
-          damagePlayer(state, "Hazard! You lost a life.");
+        if (
+          obstacle.kind === "hazard" ||
+          game.collisionRules.playerHitsObstacle === "lose-life"
+        ) {
+          damagePlayer(state);
         }
       }
 
       for (const item of state.collectibles) {
         if (item.collected || !intersects(state.player, item)) continue;
         if (game.collisionRules.playerCollectsCollectible === "ignore") continue;
-        item.collected = game.collisionRules.playerCollectsCollectible !== "score";
+        item.collected =
+          game.collisionRules.playerCollectsCollectible !== "score";
         state.score += item.points || game.scoring.perCollectible;
-        spawnParticles(state, item, item.color);
+        setUiScore(state.score);
+        if (game.feel.particles) spawnBurst(state, item, item.color);
+        if (game.feel.collectAnimation) {
+          state.floaters.push({
+            x: item.x + item.width / 2,
+            y: item.y,
+            text: `+${item.points || game.scoring.perCollectible}`,
+            life: 0.8,
+          });
+        }
         if (game.collisionRules.playerCollectsCollectible === "win") {
-          state.status = "won";
-          state.message = game.winCondition;
+          setStatus(state, "won");
         }
       }
 
@@ -441,7 +600,9 @@ export function CanvasGame({ game }: CanvasGameProps) {
           enemy.alive = false;
           projectile.x = WORLD.width + 999;
           state.score += game.scoring.perEnemy;
-          spawnParticles(state, enemy, enemy.color);
+          setUiScore(state.score);
+          if (game.feel.particles) spawnBurst(state, enemy, enemy.color);
+          if (game.feel.screenShake) state.shake = Math.max(state.shake, 0.18);
         }
       }
       state.projectiles = state.projectiles.filter(
@@ -455,99 +616,166 @@ export function CanvasGame({ game }: CanvasGameProps) {
       for (const particle of state.particles) {
         particle.x += particle.vx * dt;
         particle.y += particle.vy * dt;
+        particle.vy += 260 * dt;
         particle.life -= dt;
       }
       state.particles = state.particles.filter((particle) => particle.life > 0);
 
+      for (const floater of state.floaters) {
+        floater.y -= 46 * dt;
+        floater.life -= dt;
+      }
+      state.floaters = state.floaters.filter((floater) => floater.life > 0);
+
       const allCollected =
-        state.collectibles.length > 0 && state.collectibles.every((item) => item.collected);
+        state.collectibles.length > 0 &&
+        state.collectibles.every((item) => item.collected);
       const allEnemiesGone =
         game.gameType === "simple-shooter" &&
         state.enemies.length > 0 &&
         state.enemies.every((enemy) => !enemy.alive);
-      const targetReached = game.scoring.target > 0 && state.score >= game.scoring.target;
+      const targetReached =
+        game.scoring.target > 0 && state.score >= game.scoring.target;
       const timeLeft = game.timer.seconds - state.elapsed;
 
       if (allCollected || allEnemiesGone || targetReached) {
-        state.status = "won";
-        state.message = game.winCondition;
-        setUiStatus("won");
+        setStatus(state, "won");
       }
-      if (game.gameType === "dodge" && game.timer.enabled && timeLeft <= 0 && state.status === "playing") {
-        state.status = "won";
-        state.message = game.winCondition;
-        setUiStatus("won");
+      if (
+        game.gameType === "dodge" &&
+        game.timer.enabled &&
+        timeLeft <= 0 &&
+        state.status === "playing"
+      ) {
+        setStatus(state, "won");
       } else if (
         game.timer.enabled &&
         game.timer.countsDown &&
         timeLeft <= 0 &&
         state.status === "playing"
       ) {
-        state.status = "lost";
-        state.message = game.loseCondition;
-        setUiStatus("lost");
+        setStatus(state, allCollected || targetReached ? "won" : "lost");
       }
     };
 
-    const render = () => {
+    const drawHudChip = (
+      x: number,
+      text: string,
+      accent: string
+    ): number => {
+      ctx.font = "bold 14px ui-sans-serif, system-ui, sans-serif";
+      const width = ctx.measureText(text).width + 26;
+      ctx.fillStyle = "rgba(15, 23, 42, 0.55)";
+      ctx.beginPath();
+      ctx.roundRect(x, 10, width, 28, 999);
+      ctx.fill();
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.arc(x + 14, 24, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, x + 24, 25);
+      ctx.textBaseline = "alphabetic";
+      return x + width + 8;
+    };
+
+    const render = (time: number) => {
       const state = stateRef.current;
-      drawBackground(ctx, game);
+      const t = time / 1000;
+
+      ctx.save();
+      if (state.shake > 0 && game.feel.screenShake) {
+        const magnitude = state.shake * 14;
+        ctx.translate(
+          (Math.random() - 0.5) * magnitude,
+          (Math.random() - 0.5) * magnitude
+        );
+      }
+
+      drawScene(ctx, game, WORLD, t);
 
       for (const platform of game.platforms) {
-        drawRoundRect(ctx, platform, platform.color, 6);
-        drawLabel(ctx, platform.label, platform);
+        drawPlatform(ctx, platform, platform.color);
       }
       for (const obstacle of game.obstacles) {
-        drawRoundRect(ctx, obstacle, obstacle.color, obstacle.kind === "hazard" ? 4 : 7);
-        drawLabel(ctx, obstacle.label, obstacle);
+        drawEntity(
+          ctx,
+          obstacle,
+          obstacle.color,
+          obstacle.kind === "hazard" ? "spiky" : "block",
+          { time: t, still: obstacle.kind !== "hazard", shadow: false }
+        );
       }
       for (const item of state.collectibles) {
         if (item.collected) continue;
-        ctx.fillStyle = item.color;
-        ctx.beginPath();
-        ctx.arc(item.x + item.width / 2, item.y + item.height / 2, item.width / 2, 0, Math.PI * 2);
-        ctx.fill();
-        drawLabel(ctx, item.label, item);
+        drawEntity(ctx, item, item.color, item.appearance, {
+          time: t,
+          phase: item.phase,
+        });
       }
       for (const enemy of state.enemies) {
         if (!enemy.alive) continue;
-        drawRoundRect(ctx, enemy, enemy.color, 999);
-        drawLabel(ctx, enemy.label, enemy);
+        drawEntity(ctx, enemy, enemy.color, enemy.appearance, {
+          time: t,
+          phase: enemy.phase,
+          face: { mood: "angry", lookX: Math.sign(state.player.x - enemy.x) },
+        });
       }
       for (const shot of state.projectiles) {
-        drawRoundRect(ctx, shot, shot.color, 999);
+        ctx.fillStyle = shot.color;
+        ctx.beginPath();
+        ctx.roundRect(shot.x, shot.y, shot.width, shot.height, 999);
+        ctx.fill();
       }
+
+      // Player (blinks while invulnerable after a hit)
+      const blinking =
+        state.damageCooldown > 0 && Math.floor(t * 10) % 2 === 0;
+      if (!blinking) {
+        drawEntity(ctx, state.player, state.player.color, game.player.appearance, {
+          time: t,
+          scaleY: state.player.squash,
+          face: { mood: "happy", lookX: state.player.facing * 0.8 },
+        });
+      }
+
       for (const particle of state.particles) {
-        ctx.globalAlpha = clamp(particle.life / 0.45, 0, 1);
+        ctx.globalAlpha = clamp(particle.life / particle.maxLife, 0, 1);
         ctx.fillStyle = particle.color;
-        ctx.fillRect(particle.x, particle.y, 4, 4);
+        ctx.beginPath();
+        ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+        ctx.fill();
       }
       ctx.globalAlpha = 1;
 
-      drawRoundRect(ctx, state.player, state.player.color, 10);
-      drawLabel(ctx, game.player.label, state.player);
-
-      ctx.fillStyle = "rgba(15, 23, 42, 0.72)";
-      ctx.fillRect(0, 0, WORLD.width, 44);
-      ctx.fillStyle = "#f8fafc";
-      ctx.font = "15px ui-sans-serif, system-ui, sans-serif";
-      ctx.textAlign = "left";
-      const timeText = game.timer.enabled
-        ? ` · Time ${Math.max(0, Math.ceil(game.timer.seconds - state.elapsed))}`
-        : "";
-      ctx.fillText(`Score ${state.score} · Lives ${state.lives}${timeText}`, 18, 28);
-
-      if (state.status !== "playing") {
-        ctx.fillStyle = "rgba(2, 6, 23, 0.72)";
-        ctx.fillRect(0, 0, WORLD.width, WORLD.height);
+      for (const floater of state.floaters) {
+        ctx.globalAlpha = clamp(floater.life / 0.8, 0, 1);
         ctx.fillStyle = "#ffffff";
-        ctx.font = "bold 34px ui-sans-serif, system-ui, sans-serif";
+        ctx.strokeStyle = "rgba(15,23,42,0.7)";
+        ctx.lineWidth = 3;
+        ctx.font = "bold 18px ui-sans-serif, system-ui, sans-serif";
         ctx.textAlign = "center";
-        const title = state.status === "won" ? "You win" : state.status === "lost" ? "Game over" : "Paused";
-        ctx.fillText(title, WORLD.width / 2, WORLD.height / 2 - 24);
-        ctx.font = "16px ui-sans-serif, system-ui, sans-serif";
-        ctx.fillText(state.message, WORLD.width / 2, WORLD.height / 2 + 10);
-        ctx.fillText("Press R to restart", WORLD.width / 2, WORLD.height / 2 + 40);
+        ctx.strokeText(floater.text, floater.x, floater.y);
+        ctx.fillText(floater.text, floater.x, floater.y);
+      }
+      ctx.globalAlpha = 1;
+
+      // HUD chips
+      let chipX = 12;
+      chipX = drawHudChip(chipX, `Score ${state.score}`, game.visualTheme.accentColor);
+      chipX = drawHudChip(chipX, `${"♥".repeat(Math.max(0, state.lives))}`, "#f87171");
+      if (game.timer.enabled) {
+        const timeLeft = Math.max(0, Math.ceil(game.timer.seconds - state.elapsed));
+        drawHudChip(chipX, `${timeLeft}s`, "#facc15");
+      }
+
+      ctx.restore();
+
+      if (state.flash > 0 && game.feel.hitFlash) {
+        ctx.fillStyle = `rgba(248, 113, 113, ${state.flash * 0.5})`;
+        ctx.fillRect(0, 0, WORLD.width, WORLD.height);
       }
     };
 
@@ -556,7 +784,7 @@ export function CanvasGame({ game }: CanvasGameProps) {
       lastTimeRef.current = time;
       const dt = Math.min(0.033, (time - last) / 1000);
       update(dt, time);
-      render();
+      render(time);
       frameRef.current = requestAnimationFrame(tick);
     };
 
@@ -565,32 +793,112 @@ export function CanvasGame({ game }: CanvasGameProps) {
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
       frameRef.current = null;
     };
-  }, [blockers, game, isPlatformer]);
+  }, [blockers, game, isPlatformer, isPong, setStatus]);
+
+  const overlay = (() => {
+    const state = stateRef.current;
+    if (uiStatus === "ready") {
+      return (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-md bg-slate-950/70 p-6 text-center backdrop-blur-[2px]">
+          <h3 className="font-heading text-2xl font-bold text-white">
+            {game.title}
+          </h3>
+          <p className="max-w-sm text-sm text-slate-200">
+            {game.shortDescription}
+          </p>
+          <p className="max-w-sm text-xs text-slate-300">{game.objective}</p>
+          <Button size="lg" onClick={start} className="mt-2">
+            <Play data-icon="inline-start" className="size-4" />
+            Play
+          </Button>
+          <p className="text-xs text-slate-400">{game.controls.instructions}</p>
+        </div>
+      );
+    }
+    if (uiStatus === "won" || uiStatus === "lost") {
+      const won = uiStatus === "won";
+      return (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-md bg-slate-950/75 p-6 text-center backdrop-blur-[2px]">
+          {won && <Trophy className="size-10 text-yellow-400" />}
+          <h3 className="font-heading text-3xl font-bold text-white">
+            {won ? "You win!" : "Game over"}
+          </h3>
+          <p className="max-w-sm text-sm text-slate-200">
+            {won ? game.winCondition : game.loseCondition}
+          </p>
+          <p className="text-sm font-medium text-slate-100">
+            Final score: {uiScore}
+          </p>
+          <Button size="lg" onClick={() => reset(true)} className="mt-1">
+            <RotateCcw data-icon="inline-start" className="size-4" />
+            Play again
+          </Button>
+        </div>
+      );
+    }
+    if (uiStatus === "paused") {
+      return (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-md bg-slate-950/60 p-6 text-center">
+          <h3 className="font-heading text-2xl font-bold text-white">Paused</h3>
+          <Button size="lg" onClick={togglePause}>
+            <Play data-icon="inline-start" className="size-4" />
+            Resume
+          </Button>
+        </div>
+      );
+    }
+    void state;
+    return null;
+  })();
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-slate-950">
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 bg-slate-950 px-3 py-2 text-xs text-slate-200">
+    <div
+      className="flex h-full min-h-0 flex-col"
+      style={{ backgroundColor: shade(game.visualTheme.background.color, -0.75) }}
+    >
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-3 py-2 text-xs text-slate-200">
         <div className="min-w-0">
           <p className="truncate font-medium text-white">{game.title}</p>
-          <p className="truncate text-slate-400">{game.controls.instructions}</p>
+          <p className="truncate text-slate-400">
+            {game.controls.instructions} · P pause · R restart
+          </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <Button size="icon" variant="ghost" className="size-8 text-slate-100" onClick={togglePause} title="Pause">
-            {uiStatus === "paused" ? <Play className="size-4" /> : <Pause className="size-4" />}
+          <Button
+            size="icon"
+            variant="ghost"
+            className="size-8 text-slate-100"
+            onClick={togglePause}
+            title="Pause"
+          >
+            {uiStatus === "paused" ? (
+              <Play className="size-4" />
+            ) : (
+              <Pause className="size-4" />
+            )}
           </Button>
-          <Button size="icon" variant="ghost" className="size-8 text-slate-100" onClick={reset} title="Restart">
+          <Button
+            size="icon"
+            variant="ghost"
+            className="size-8 text-slate-100"
+            onClick={() => reset(false)}
+            title="Restart"
+          >
             <RotateCcw className="size-4" />
           </Button>
         </div>
       </div>
-      <div className="min-h-0 flex-1 p-2">
-        <canvas
-          ref={canvasRef}
-          width={WORLD.width}
-          height={WORLD.height}
-          className="h-full w-full touch-none rounded-md border border-white/10 bg-slate-900"
-          aria-label={`${game.title} game preview`}
-        />
+      <div className="relative flex min-h-0 flex-1 items-center justify-center p-2">
+        <div className="relative max-h-full w-full max-w-full" style={{ aspectRatio: "16 / 9" }}>
+          <canvas
+            ref={canvasRef}
+            width={WORLD.width}
+            height={WORLD.height}
+            className="h-full w-full touch-none rounded-md border border-white/10"
+            aria-label={`${game.title} game preview`}
+          />
+          {overlay}
+        </div>
       </div>
     </div>
   );
