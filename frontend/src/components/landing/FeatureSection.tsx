@@ -1,16 +1,20 @@
 "use client";
 
-import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
+
+import {
+  FeatureAiIcon,
+  FeaturePlayIcon,
+  FeatureSketchIcon,
+} from "@/components/landing/FeatureIcons";
 
 const FEATURES = [
   {
     step: "01",
     title: "Sketch your level",
     description:
-      "Draw platforms, enemies, walls, collectibles. Rough is fine — Playbox reads intent, not perfection.",
-    icon: "/landing/icon-sketch.svg",
-    iconSecondary: "/landing/icon-sketch-2.svg",
+      "Draw platforms, enemies, walls, collectibles. Rough is fine, Playbox reads intent, not perfection.",
+    Icon: FeatureSketchIcon,
     wiggle: { rotate: [0, -6, 6, 0] as number[] },
   },
   {
@@ -18,8 +22,7 @@ const FEATURES = [
     title: "AI understands it",
     description:
       "Playbox identifies platforms, characters, physics rules, enemies, and win conditions from your sketch.",
-    icon: "/landing/icon-ai.svg",
-    iconSecondary: "/landing/icon-ai-2.svg",
+    Icon: FeatureAiIcon,
     wiggle: { scale: [1, 1.1, 1] as number[] },
   },
   {
@@ -27,7 +30,7 @@ const FEATURES = [
     title: "Press play",
     description:
       "Your sketch becomes a game you can immediately play, test, and share. Iterate in seconds, not weeks.",
-    icon: "/landing/icon-play.svg",
+    Icon: FeaturePlayIcon,
     wiggle: { x: [0, 3, 0] as number[] },
   },
 ] as const;
@@ -36,8 +39,8 @@ export function FeatureSection() {
   const reduceMotion = useReducedMotion();
 
   return (
-    <section id="solution" className="scroll-mt-20 border-t border-border px-6 py-24 lg:px-12">
-      <div className="mx-auto w-full max-w-6xl">
+    <section id="solution" className="scroll-mt-20 px-6 py-24 lg:px-12">
+      <div className="mx-auto w-full max-w-[1152px]">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -60,7 +63,8 @@ export function FeatureSection() {
           </p>
         </motion.div>
 
-        <div className="mt-20 grid gap-0 overflow-hidden rounded-2xl border border-border sm:grid-cols-3">
+        <div className="mt-20 overflow-hidden rounded-2xl border border-border bg-[rgba(24,22,46,0.1)]">
+          <div className="grid gap-0 sm:grid-cols-3">
           {FEATURES.map((feature, index) => (
             <motion.div
               key={feature.title}
@@ -73,17 +77,16 @@ export function FeatureSection() {
                 damping: 16,
                 delay: index * 0.1,
               }}
-              whileHover={{ y: -6, backgroundColor: "rgba(236, 234, 246, 0.95)" }}
+              whileHover={{
+                y: -6,
+                backgroundColor: "rgba(236, 234, 246, 0.95)",
+                boxShadow: "0 12px 32px rgba(24, 22, 46, 0.1)",
+              }}
               className="group relative flex flex-col gap-5 bg-landing-surface p-8 transition-colors"
             >
               <motion.div
-                className="relative size-9"
                 aria-hidden
-                animate={
-                  reduceMotion
-                    ? undefined
-                    : feature.wiggle
-                }
+                animate={reduceMotion ? undefined : feature.wiggle}
                 transition={{
                   duration: 2.5,
                   repeat: Infinity,
@@ -92,26 +95,7 @@ export function FeatureSection() {
                 }}
                 whileHover={{ scale: 1.15, rotate: index === 0 ? 8 : 0 }}
               >
-                <Image
-                  src={feature.icon}
-                  alt=""
-                  width={36}
-                  height={36}
-                  className={
-                    "iconSecondary" in feature && feature.iconSecondary
-                      ? "absolute inset-[18%]"
-                      : "absolute inset-[28%_28%_28%_39%]"
-                  }
-                />
-                {"iconSecondary" in feature && feature.iconSecondary && (
-                  <Image
-                    src={feature.iconSecondary}
-                    alt=""
-                    width={36}
-                    height={36}
-                    className="absolute inset-[14%]"
-                  />
-                )}
+                <feature.Icon />
               </motion.div>
 
               <div>
@@ -141,6 +125,7 @@ export function FeatureSection() {
               />
             </motion.div>
           ))}
+          </div>
         </div>
       </div>
     </section>

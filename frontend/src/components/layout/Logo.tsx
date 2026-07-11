@@ -12,7 +12,7 @@ export function Logo({ className, size = "md" }: LogoProps) {
   const markSize = size === "sm" ? 22 : 34;
   const textClass =
     size === "sm"
-      ? "font-[family-name:var(--font-body)] text-xs font-extrabold text-landing-muted"
+      ? "font-heading text-xs font-extrabold text-landing-muted"
       : "font-heading text-[22px] font-medium text-landing-ink";
 
   return (

@@ -1,10 +1,11 @@
 import { Navbar } from "@/components/layout/Navbar";
-import { Hero } from "@/components/landing/Hero";
-import { MarqueeTicker } from "@/components/landing/MarqueeTicker";
+import { CTASection } from "@/components/landing/CTASection";
 import { DemoSection } from "@/components/landing/DemoSection";
 import { FeatureSection } from "@/components/landing/FeatureSection";
-import { CTASection } from "@/components/landing/CTASection";
 import { Footer } from "@/components/landing/Footer";
+import { Hero } from "@/components/landing/Hero";
+import { LandingDivider } from "@/components/landing/LandingDivider";
+import { MarqueeTicker } from "@/components/landing/MarqueeTicker";
 
 export default function LandingPage() {
   return (
@@ -12,8 +13,10 @@ export default function LandingPage() {
       <Navbar />
       <main className="flex-1">
         <Hero />
-        {/* <MarqueeTicker /> */}
+        <LandingDivider />
+        <MarqueeTicker />
         <DemoSection />
+        <LandingDivider />
         <FeatureSection />
         <CTASection />
       </main>

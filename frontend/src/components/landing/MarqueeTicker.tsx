@@ -1,60 +1,46 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { useReducedMotion } from "framer-motion";
 
-const TICKER_ITEMS = [
-  "SKETCH",
-  "PLAY",
-  "SHIP",
-  "WIN",
-  "CREATE",
-  "ITERATE",
-] as const;
+const TICKER_ITEMS = ["CREATE", "SKETCH", "PLAY"] as const;
+const SEQUENCE_REPEATS = 8;
 
-function TickerSequence() {
-  const reduceMotion = useReducedMotion();
-
+function TickerItem({ word }: { word: string }) {
   return (
-    <>
-      {TICKER_ITEMS.map((word, index) => (
-        <span key={`${word}-${index}`} className="flex items-center">
-          <motion.span
-            className="px-4 text-[11px] font-bold tracking-[0.18em] text-landing-muted/40"
-            whileHover={{ color: "rgba(149, 117, 205, 0.8)", scale: 1.08 }}
-          >
-            {word}
-          </motion.span>
-          <motion.span
-            className="text-[11px] font-bold tracking-[0.18em] text-landing-purple"
-            animate={
-              reduceMotion
-                ? undefined
-                : { x: [0, 3, 0], opacity: [0.7, 1, 0.7] }
-            }
-            transition={{
-              duration: 1.2,
-              repeat: Infinity,
-              delay: index * 0.15,
-              ease: "easeInOut",
-            }}
-          >
-            →
-          </motion.span>
-        </span>
-      ))}
-    </>
+    <span className="flex shrink-0 items-center">
+      <span className="px-4 font-[family-name:var(--font-body)] text-[11px] font-bold tracking-[0.18em] text-landing-muted/40">
+        {word}
+      </span>
+      <span className="px-4 font-[family-name:var(--font-body)] text-[11px] font-bold tracking-[0.18em] text-landing-purple">
+        →
+      </span>
+    </span>
+  );
+}
+
+function TickerTrack() {
+  return (
+    <div className="flex shrink-0 items-center">
+      {Array.from({ length: SEQUENCE_REPEATS }, (_, repeatIndex) =>
+        TICKER_ITEMS.map((word) => (
+          <TickerItem key={`${repeatIndex}-${word}`} word={word} />
+        ))
+      )}
+    </div>
   );
 }
 
 export function MarqueeTicker() {
+  const reduceMotion = useReducedMotion();
+
   return (
-    <div className="group overflow-hidden border-y border-border py-4">
-      <div className="flex w-max animate-marquee group-hover:[animation-play-state:paused]">
-        <div className="flex items-center">
-          <TickerSequence />
-        </div>
-        <div className="flex items-center" aria-hidden>
-          <TickerSequence />
+    <div className="group overflow-hidden border-y border-border py-[15px]">
+      <div
+        className={`flex w-max ${reduceMotion ? "" : "animate-marquee group-hover:[animation-play-state:paused]"}`}
+      >
+        <TickerTrack />
+        <div aria-hidden className="flex shrink-0 items-center">
+          <TickerTrack />
         </div>
       </div>
     </div>

@@ -18,7 +18,7 @@ export function Navbar() {
       transition={{ type: "spring", stiffness: 260, damping: 24 }}
       className="sticky top-0 z-40 border-b border-border bg-[rgba(242,240,250,0.9)] backdrop-blur-md"
     >
-      <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-6 lg:px-12">
+      <div className="mx-auto flex h-14 w-full max-w-[1152px] items-center justify-between px-6 lg:px-12">
         <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
           <Logo />
         </motion.div>

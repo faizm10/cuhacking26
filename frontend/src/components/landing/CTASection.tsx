@@ -8,7 +8,7 @@ export function CTASection() {
 
   return (
     <section className="px-6 py-24 lg:px-12">
-      <div className="mx-auto w-full max-w-6xl">
+      <div className="mx-auto w-full max-w-[1152px]">
         <motion.div
           initial={{ opacity: 0, y: 32, scale: 0.98 }}
           whileInView={{ opacity: 1, y: 0, scale: 1 }}
@@ -18,23 +18,11 @@ export function CTASection() {
         >
           <motion.div
             aria-hidden
-            className="pointer-events-none absolute -left-28 -top-28 size-96 rounded-full bg-landing-purple/15 blur-3xl"
-            animate={
-              reduceMotion
-                ? undefined
-                : { x: [0, 30, 0], y: [0, 20, 0], scale: [1, 1.1, 1] }
-            }
-            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+            className="pointer-events-none absolute -left-28 -top-28 size-96 rounded-full bg-landing-purple/15 blur-3xl animate-landing-glow"
           />
           <motion.div
             aria-hidden
-            className="pointer-events-none absolute -bottom-20 -right-20 size-80 rounded-full bg-landing-purple/10 blur-3xl"
-            animate={
-              reduceMotion
-                ? undefined
-                : { x: [0, -25, 0], y: [0, -15, 0], scale: [1, 1.08, 1] }
-            }
-            transition={{ duration: 7, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+            className="pointer-events-none absolute -bottom-20 -right-20 size-80 rounded-full bg-landing-purple/10 blur-3xl animate-landing-glow-delayed"
           />
 
           <div className="relative">
@@ -80,7 +68,7 @@ export function CTASection() {
               <motion.div whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.96 }}>
                 <Link
                   href="/dashboard"
-                  className="inline-flex rounded-full bg-landing-purple px-8 py-3.5 text-sm font-bold text-landing-ink shadow-[0_4px_24px_rgba(149,117,205,0.45)] transition-shadow hover:shadow-[0_8px_32px_rgba(149,117,205,0.55)]"
+                  className="inline-flex rounded-full bg-landing-purple px-8 py-3.5 text-sm font-bold text-landing-ink shadow-[0_4px_24px_rgba(149,117,205,0.45)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-[0_6px_20px_rgba(149,117,205,0.35)]"
                 >
                   Start playing now
                 </Link>

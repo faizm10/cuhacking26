@@ -13,7 +13,7 @@ export function Footer() {
       transition={{ duration: 0.5 }}
       className="border-t border-border"
     >
-      <div className="mx-auto flex w-full max-w-6xl items-center px-6 py-8 lg:px-12">
+      <div className="mx-auto flex w-full max-w-[1152px] items-center px-6 pb-8 pt-[33px] lg:px-12">
         <motion.div
           whileHover={{ scale: 1.03 }}
           transition={{ type: "spring", stiffness: 400, damping: 20 }}

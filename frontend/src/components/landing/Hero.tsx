@@ -4,8 +4,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 
-import { FloatingShapes } from "@/components/landing/FloatingShapes";
-
 const spring = { type: "spring" as const, stiffness: 120, damping: 14 };
 
 const container = {
@@ -33,13 +31,11 @@ export function Hero() {
 
   return (
     <section className="relative overflow-hidden">
-      <FloatingShapes />
-
       <motion.div
         variants={container}
         initial="hidden"
         animate="visible"
-        className="relative mx-auto grid w-full max-w-6xl gap-12 px-6 pb-16 pt-24 lg:grid-cols-2 lg:items-center lg:gap-8 lg:px-12 lg:pb-24 lg:pt-32"
+        className="relative mx-auto grid w-full max-w-[1152px] gap-12 px-6 pb-24 pt-24 lg:grid-cols-2 lg:items-center lg:gap-8 lg:px-12 lg:pb-24 lg:pt-32"
       >
         <div className="flex flex-col">
           <motion.h1
@@ -72,7 +68,7 @@ export function Hero() {
             className="mt-6 max-w-md text-base leading-relaxed text-landing-muted"
           >
             Sketch your level. Describe the objective. Playbox understands your
-            drawing and instantly transforms it into a playable game.
+            drawing and instantly transforms it into a playable game
           </motion.p>
 
           <motion.div variants={item} className="mt-10">
@@ -83,7 +79,7 @@ export function Hero() {
             >
               <Link
                 href="/dashboard"
-                className="group inline-flex items-center gap-2.5 rounded-2xl bg-landing-purple px-6 py-3.5 text-[15px] font-bold text-white shadow-landing-cta"
+                className="group inline-flex items-center gap-2.5 rounded-2xl bg-landing-purple px-6 py-3.5 text-[15px] font-bold text-white shadow-landing-cta transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-[0_6px_20px_rgba(149,117,205,0.35)]"
               >
                 <motion.span
                   animate={
@@ -117,22 +113,8 @@ export function Hero() {
         <motion.div
           variants={item}
           className="relative mx-auto w-full max-w-lg lg:max-w-none"
-          animate={
-            reduceMotion
-              ? undefined
-              : { y: [0, -10, 0], rotate: [0, 0.6, 0, -0.6, 0] }
-          }
-          transition={{
-            duration: 5,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
         >
-          <motion.div
-            className="relative"
-            whileHover={{ scale: 1.02 }}
-            transition={{ type: "spring", stiffness: 200, damping: 20 }}
-          >
+          <div className="relative animate-landing-float motion-reduce:animate-none">
             <Image
               src="/landing/hero-illustration.svg"
               alt="Person sketching a game level on a canvas"
@@ -141,7 +123,7 @@ export function Hero() {
               className="h-auto w-full"
               priority
             />
-          </motion.div>
+          </div>
         </motion.div>
       </motion.div>
     </section>
