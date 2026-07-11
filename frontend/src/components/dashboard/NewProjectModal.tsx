@@ -14,15 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { GAME_TYPE_OPTIONS } from "@/lib/mock-data/projects";
-import type { GameType, NewProjectInput } from "@/types";
+import type { NewProjectInput } from "@/types";
 
 interface NewProjectModalProps {
   open: boolean;
@@ -36,14 +28,11 @@ export function NewProjectModal({
   onCreate,
 }: NewProjectModalProps) {
   const [name, setName] = useState("");
-  const [gameType, setGameType] = useState<GameType>("collect");
 
   const handleCreate = () => {
-    const input: NewProjectInput = { name: name.trim(), gameType };
-    console.log("Create project", input);
+    const input: NewProjectInput = { name: name.trim() };
     onCreate(input);
     setName("");
-    setGameType("collect");
     onOpenChange(false);
   };
 
@@ -53,43 +42,23 @@ export function NewProjectModal({
         <DialogHeader>
           <DialogTitle>New project</DialogTitle>
           <DialogDescription>
-            Name your game and pick a type. You&apos;ll sketch it next.
+            Name your game — you&apos;ll sketch it next. The AI picks the
+            gameplay style from your drawing.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 py-1">
-          <div className="grid gap-2">
-            <Label htmlFor="project-name">Project name</Label>
-            <Input
-              id="project-name"
-              placeholder="e.g. Moon Jumper"
-              value={name}
-              autoFocus
-              onChange={(event) => setName(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && name.trim()) handleCreate();
-              }}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="project-type">Game type</Label>
-            <Select
-              items={GAME_TYPE_OPTIONS}
-              value={gameType}
-              onValueChange={(value) => setGameType(value as GameType)}
-            >
-              <SelectTrigger id="project-type" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {GAME_TYPE_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="grid gap-2 py-1">
+          <Label htmlFor="project-name">Project name</Label>
+          <Input
+            id="project-name"
+            placeholder="e.g. Moon Jumper"
+            value={name}
+            autoFocus
+            onChange={(event) => setName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && name.trim()) handleCreate();
+            }}
+          />
         </div>
 
         <DialogFooter>
