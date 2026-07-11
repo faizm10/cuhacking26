@@ -1,16 +1,19 @@
 "use client";
 
+import { useRef } from "react";
 import Link from "next/link";
-import { ArrowLeft, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, ImagePlus, Loader2, Sparkles } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { ACCEPT_IMAGE_ATTR } from "@/lib/canvas/image-upload";
 
 interface EditorTopBarProps {
   projectName: string;
   gameTypeLabel?: string;
   isGenerating: boolean;
   onGenerate: () => void;
+  onUploadImages?: (files: File[]) => void;
 }
 
 export function EditorTopBar({
@@ -18,7 +21,10 @@ export function EditorTopBar({
   gameTypeLabel,
   isGenerating,
   onGenerate,
+  onUploadImages,
 }: EditorTopBarProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   return (
     <header className="z-10 flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border bg-background px-3 sm:px-4">
       <div className="flex min-w-0 items-center gap-3">
@@ -39,9 +45,37 @@ export function EditorTopBar({
       </div>
 
       <div className="flex items-center gap-2">
-        <p className="hidden text-xs text-muted-foreground lg:block">
-          Sketch, label with text, describe the game, then generate
+        <p className="hidden text-xs text-muted-foreground xl:block">
+          Sketch or upload, generate, then chat to tweak — or edit + Regenerate
         </p>
+        {onUploadImages && (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={ACCEPT_IMAGE_ATTR}
+              multiple
+              className="sr-only"
+              disabled={isGenerating}
+              onChange={(event) => {
+                const files = event.target.files;
+                if (files && files.length > 0) {
+                  onUploadImages(Array.from(files));
+                }
+                event.target.value = "";
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isGenerating}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <ImagePlus data-icon="inline-start" className="size-4" />
+              Upload
+            </Button>
+          </>
+        )}
         <Button onClick={onGenerate} disabled={isGenerating}>
           {isGenerating ? (
             <Loader2 data-icon="inline-start" className="size-4 animate-spin" />
