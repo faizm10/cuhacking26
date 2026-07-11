@@ -1,0 +1,19 @@
+"use client";
+
+import { ProjectCard } from "@/components/dashboard/ProjectCard";
+import type { Project } from "@/types";
+
+interface ProjectGridProps {
+  projects: Project[];
+  onOpen: (project: Project) => void;
+}
+
+export function ProjectGrid({ projects, onOpen }: ProjectGridProps) {
+  return (
+    <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+      {projects.map((project) => (
+        <ProjectCard key={project.id} project={project} onOpen={onOpen} />
+      ))}
+    </div>
+  );
+}
