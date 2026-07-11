@@ -1,9 +1,20 @@
+import Image from "next/image";
 import Link from "next/link";
-import { Gamepad2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-export function Logo({ className }: { className?: string }) {
+type LogoProps = {
+  className?: string;
+  size?: "sm" | "md";
+};
+
+export function Logo({ className, size = "md" }: LogoProps) {
+  const markSize = size === "sm" ? 22 : 34;
+  const textClass =
+    size === "sm"
+      ? "font-[family-name:var(--font-body)] text-xs font-extrabold text-landing-muted"
+      : "font-heading text-[22px] font-medium text-landing-ink";
+
   return (
     <Link
       href="/"
@@ -12,12 +23,15 @@ export function Logo({ className }: { className?: string }) {
         className
       )}
     >
-      <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-soft">
-        <Gamepad2 className="size-4.5" />
-      </span>
-      <span className="font-heading text-lg font-semibold tracking-tight">
-        Play<span className="text-primary">Box</span>
-      </span>
+      <Image
+        src="/landing/logo-mark.svg"
+        alt=""
+        width={markSize}
+        height={markSize}
+        className="shrink-0"
+        aria-hidden
+      />
+      <span className={textClass}>Playbox</span>
     </Link>
   );
 }

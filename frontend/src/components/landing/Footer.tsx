@@ -1,38 +1,26 @@
-import Link from "next/link";
+"use client";
+
+import { motion } from "framer-motion";
 
 import { Logo } from "@/components/layout/Logo";
 
-const FOOTER_LINKS = [
-  { label: "How it works", href: "/#how-it-works" },
-  { label: "Features", href: "/#features" },
-  { label: "Dashboard", href: "/dashboard" },
-];
-
 export function Footer() {
   return (
-    <footer className="border-t border-border bg-secondary/40">
-      <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-6 px-4 py-10 sm:flex-row sm:justify-between sm:px-6">
-        <div className="flex flex-col items-center gap-2 sm:items-start">
-          <Logo />
-          <p className="text-sm text-muted-foreground">
-            Sketch it. Generate it. Play it.
-          </p>
-        </div>
-        <nav className="flex items-center gap-6">
-          {FOOTER_LINKS.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-            >
-              {link.label}
-            </Link>
-          ))}
-        </nav>
-        <p className="text-sm text-muted-foreground">
-          © {new Date().getFullYear()} PlayBox
-        </p>
+    <motion.footer
+      initial={{ opacity: 0 }}
+      whileInView={{ opacity: 1 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.5 }}
+      className="border-t border-border"
+    >
+      <div className="mx-auto flex w-full max-w-6xl items-center px-6 py-8 lg:px-12">
+        <motion.div
+          whileHover={{ scale: 1.03 }}
+          transition={{ type: "spring", stiffness: 400, damping: 20 }}
+        >
+          <Logo size="sm" />
+        </motion.div>
       </div>
-    </footer>
+    </motion.footer>
   );
 }

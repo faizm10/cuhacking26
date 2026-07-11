@@ -1,105 +1,147 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { Sparkles } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
 
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { FloatingShapes } from "@/components/landing/FloatingShapes";
+
+const spring = { type: "spring" as const, stiffness: 120, damping: 14 };
 
 const container = {
   hidden: {},
-  visible: { transition: { staggerChildren: 0.12 } },
+  visible: { transition: { staggerChildren: 0.12, delayChildren: 0.1 } },
 };
 
 const item = {
-  hidden: { opacity: 0, y: 16 },
+  hidden: { opacity: 0, y: 28 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.5, ease: "easeOut" as const },
+    transition: spring,
   },
 };
 
+const headlineLines = [
+  { text: "Sketch it.", className: "text-landing-ink" },
+  { text: "Play it.", className: "text-landing-purple" },
+  { text: "Ship it.", className: "text-landing-ink" },
+] as const;
+
 export function Hero() {
+  const reduceMotion = useReducedMotion();
+
   return (
     <section className="relative overflow-hidden">
-      {/* Dotted "whiteboard" backdrop with warm glows */}
-      <div
-        aria-hidden
-        className="absolute inset-0 -z-10 bg-[radial-gradient(circle,_var(--border)_1px,_transparent_1px)] bg-[size:24px_24px] [mask-image:radial-gradient(ellipse_70%_60%_at_50%_40%,_black,_transparent)]"
-      />
-      <div
-        aria-hidden
-        className="absolute -top-24 left-1/2 -z-10 h-72 w-lg -translate-x-1/2 rounded-full bg-primary/15 blur-3xl"
-      />
+      <FloatingShapes />
 
       <motion.div
         variants={container}
         initial="hidden"
         animate="visible"
-        className="mx-auto flex w-full max-w-4xl flex-col items-center px-4 pt-20 pb-24 text-center sm:px-6 sm:pt-28"
+        className="relative mx-auto grid w-full max-w-6xl gap-12 px-6 pb-16 pt-24 lg:grid-cols-2 lg:items-center lg:gap-8 lg:px-12 lg:pb-24 lg:pt-32"
       >
-        <motion.div
-          variants={item}
-          className="mb-6 flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-sm text-muted-foreground shadow-soft"
-        >
-          <Sparkles className="size-3.5 text-primary" />
-          AI-powered game creation
-        </motion.div>
+        <div className="flex flex-col">
+          <motion.h1
+            variants={item}
+            className="font-heading text-5xl font-bold leading-[1.08] tracking-[-0.025em] sm:text-6xl lg:text-[64px]"
+          >
+            {headlineLines.map((line, index) => (
+              <motion.span
+                key={line.text}
+                className={`block ${line.className}`}
+                initial={{ opacity: 0, x: -24 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{
+                  ...spring,
+                  delay: 0.15 + index * 0.12,
+                }}
+                whileHover={
+                  line.text === "Play it."
+                    ? { scale: 1.03, transition: { type: "spring", stiffness: 400 } }
+                    : undefined
+                }
+              >
+                {line.text}
+              </motion.span>
+            ))}
+          </motion.h1>
 
-        <motion.h1
-          variants={item}
-          className="font-heading text-4xl font-bold tracking-tight text-balance sm:text-5xl md:text-6xl"
-        >
-          Turn your sketches into{" "}
-          <span className="relative inline-block text-primary">
-            playable games
-            <svg
-              aria-hidden
-              viewBox="0 0 200 12"
-              className="absolute -bottom-2 left-0 w-full text-primary/50"
-              preserveAspectRatio="none"
+          <motion.p
+            variants={item}
+            className="mt-6 max-w-md text-base leading-relaxed text-landing-muted"
+          >
+            Sketch your level. Describe the objective. Playbox understands your
+            drawing and instantly transforms it into a playable game.
+          </motion.p>
+
+          <motion.div variants={item} className="mt-10">
+            <motion.div
+              whileHover={{ scale: 1.04, y: -2 }}
+              whileTap={{ scale: 0.98, y: 2 }}
+              transition={{ type: "spring", stiffness: 400, damping: 17 }}
             >
-              <path
-                d="M2 9 C 40 3, 80 11, 118 6 S 180 4, 198 7"
-                stroke="currentColor"
-                strokeWidth="3"
-                strokeLinecap="round"
-                fill="none"
-              />
-            </svg>
-          </span>
-        </motion.h1>
-
-        <motion.p
-          variants={item}
-          className="mt-6 max-w-2xl text-lg text-pretty text-muted-foreground"
-        >
-          Doodle a level on the canvas, and PlayBox&apos;s AI turns it into a
-          real, playable game in seconds. No code, no engine setup — just draw,
-          generate, and play.
-        </motion.p>
+              <Link
+                href="/dashboard"
+                className="group inline-flex items-center gap-2.5 rounded-2xl bg-landing-purple px-6 py-3.5 text-[15px] font-bold text-white shadow-landing-cta"
+              >
+                <motion.span
+                  animate={
+                    reduceMotion
+                      ? undefined
+                      : { rotate: [0, -8, 8, -4, 0] }
+                  }
+                  transition={{
+                    duration: 2.5,
+                    repeat: Infinity,
+                    repeatDelay: 3,
+                    ease: "easeInOut",
+                  }}
+                  className="inline-flex"
+                >
+                  <Image
+                    src="/landing/icon-pencil.svg"
+                    alt=""
+                    width={16}
+                    height={16}
+                    aria-hidden
+                    className="transition-transform group-hover:scale-110"
+                  />
+                </motion.span>
+                Start sketching
+              </Link>
+            </motion.div>
+          </motion.div>
+        </div>
 
         <motion.div
           variants={item}
-          className="mt-8 flex flex-col items-center gap-3 sm:flex-row"
+          className="relative mx-auto w-full max-w-lg lg:max-w-none"
+          animate={
+            reduceMotion
+              ? undefined
+              : { y: [0, -10, 0], rotate: [0, 0.6, 0, -0.6, 0] }
+          }
+          transition={{
+            duration: 5,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
         >
-          <Link
-            href="/dashboard"
-            className={cn(buttonVariants({ size: "lg" }), "px-6")}
+          <motion.div
+            className="relative"
+            whileHover={{ scale: 1.02 }}
+            transition={{ type: "spring", stiffness: 200, damping: 20 }}
           >
-            Start Creating
-          </Link>
-          <Link
-            href="/#how-it-works"
-            className={cn(
-              buttonVariants({ variant: "outline", size: "lg" }),
-              "px-6"
-            )}
-          >
-            View Demo
-          </Link>
+            <Image
+              src="/landing/hero-illustration.svg"
+              alt="Person sketching a game level on a canvas"
+              width={505}
+              height={356}
+              className="h-auto w-full"
+              priority
+            />
+          </motion.div>
         </motion.div>
       </motion.div>
     </section>

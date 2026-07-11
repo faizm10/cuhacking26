@@ -1,48 +1,51 @@
-import Link from "next/link";
+"use client";
 
-import { buttonVariants } from "@/components/ui/button";
+import Link from "next/link";
+import { motion } from "framer-motion";
+
 import { Logo } from "@/components/layout/Logo";
-import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
-  { label: "How it works", href: "/#how-it-works" },
-  { label: "Features", href: "/#features" },
+  { label: "Demo", href: "/#demo" },
+  { label: "Solution", href: "/#solution" },
 ];
 
 export function Navbar() {
   return (
-    <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-md">
-      <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
-        <Logo />
-        <nav className="hidden items-center gap-1 md:flex">
+    <motion.header
+      initial={{ y: -20, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ type: "spring", stiffness: 260, damping: 24 }}
+      className="sticky top-0 z-40 border-b border-border bg-[rgba(242,240,250,0.9)] backdrop-blur-md"
+    >
+      <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-6 lg:px-12">
+        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+          <Logo />
+        </motion.div>
+
+        <nav className="hidden items-center gap-8 md:flex">
           {NAV_LINKS.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={cn(
-                buttonVariants({ variant: "ghost" }),
-                "text-muted-foreground"
-              )}
-            >
-              {link.label}
-            </Link>
+            <motion.div key={link.href} whileHover={{ y: -1 }}>
+              <Link
+                href={link.href}
+                className="group relative text-[13px] text-landing-muted transition-colors hover:text-landing-ink"
+              >
+                {link.label}
+                <span className="absolute -bottom-1 left-0 h-0.5 w-0 rounded-full bg-landing-purple transition-all duration-300 group-hover:w-full" />
+              </Link>
+            </motion.div>
           ))}
         </nav>
-        <div className="flex items-center gap-2">
+
+        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
           <Link
-            href="/#how-it-works"
-            className={cn(
-              buttonVariants({ variant: "outline" }),
-              "hidden sm:inline-flex"
-            )}
+            href="/dashboard"
+            className="rounded-full bg-landing-ink px-5 py-2 text-[13px] text-landing-bg transition-shadow hover:shadow-[0_4px_20px_rgba(24,22,46,0.25)]"
           >
-            View Demo
+            Try Playbox
           </Link>
-          <Link href="/dashboard" className={buttonVariants()}>
-            Start Creating
-          </Link>
-        </div>
+        </motion.div>
       </div>
-    </header>
+    </motion.header>
   );
 }
