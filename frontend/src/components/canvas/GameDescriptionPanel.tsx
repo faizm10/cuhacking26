@@ -28,8 +28,8 @@ export function GameDescriptionPanel({
         className="mt-1.5 w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
       />
       <p className="mt-1 text-[11px] text-muted-foreground">
-        Tip: use the text tool on the canvas to label Player, Enemy, Coin, Goal,
-        and write short instructions near your sketch.
+        Tip: upload or drop a drawing, label with text, then Generate. Afterward
+        edit the sketch + Regenerate for layout, or chat to tweak rules.
       </p>
     </div>
   );
