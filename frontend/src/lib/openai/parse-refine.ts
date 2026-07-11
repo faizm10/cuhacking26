@@ -1,18 +1,24 @@
-import { clampRawSpec } from "@/lib/game/repair";
+import { clampRawSpec, mergeGamePatch } from "@/lib/game/repair";
 import {
   refineResultSchema,
   type RefineResult,
 } from "@/lib/game/refine-request";
+import type { GameSpec } from "@/lib/game/schema";
 
 export type ParsedRefineOutput =
   | { ok: true; value: RefineResult }
   | { ok: false; issues: string };
 
 /**
- * Parse and validate refine-game model output. Numbers slightly out of range
- * are clamped before Zod so trivia doesn't force a retry.
+ * Parse and validate refine-game model output.
+ * - Merges the AI draft onto the current GameSpec so required structure is kept
+ * - Normalizes colors / clamps numbers before Zod
+ * so trivia (like `#eee` colors) doesn't discard a good AI edit.
  */
-export function parseRefineOutput(text: string): ParsedRefineOutput {
+export function parseRefineOutput(
+  text: string,
+  baseGame?: GameSpec
+): ParsedRefineOutput {
   let json: unknown;
   try {
     json = JSON.parse(text);
@@ -25,12 +31,22 @@ export function parseRefineOutput(text: string): ParsedRefineOutput {
   }
 
   const raw = json as Record<string, unknown>;
-  const clampedRoot = clampRawSpec({ game: raw.game ?? raw }) as {
+  const patch = raw.game ?? raw;
+  const mergedGame = baseGame
+    ? mergeGamePatch(baseGame, patch)
+    : patch;
+
+  const clampedRoot = clampRawSpec({ game: mergedGame }) as {
     game?: unknown;
   };
 
+  const assistantMessage =
+    typeof raw.assistantMessage === "string" && raw.assistantMessage.trim()
+      ? raw.assistantMessage.trim()
+      : "Updated the game based on your request.";
+
   const result = refineResultSchema.safeParse({
-    assistantMessage: raw.assistantMessage,
+    assistantMessage: assistantMessage.slice(0, 400),
     game: clampedRoot.game,
   });
 

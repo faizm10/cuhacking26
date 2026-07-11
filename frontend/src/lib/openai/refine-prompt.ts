@@ -1,5 +1,5 @@
 import type { RefineGameRequest } from "@/lib/game/refine-request";
-import { supportedGameTypes } from "@/lib/game/schema";
+import { GAME_WORLD, supportedGameTypes } from "@/lib/game/schema";
 
 /**
  * Prompt for the post-generate game tuner. Output shape is enforced via
@@ -15,6 +15,14 @@ YOUR JOB
 - Keep the game playable: do not place the player inside walls/hazards; keep entity counts within schema limits; preserve win/lose conditions unless the user asks to change them.
 - If the request is unclear, make the most reasonable small improvement and explain it in assistantMessage.
 - If the user asks for something impossible in the schema (e.g. multiplayer, 3D), keep the game intact and explain the limitation in assistantMessage.
+
+LAYOUT RULES (world is ${GAME_WORLD.width}×${GAME_WORLD.height})
+- Floor / ground at the bottom: add ONE static platform with movement "none", x: 0, y: about ${GAME_WORLD.height - 36}, width: ${GAME_WORLD.width}, height: 28–40, solid ground color. Place the player standing on it (player.y = floor.y - player.height).
+- Extra obstacles: use obstacles[] with kind "hazard" for spikes (solid: false, damage: 1) or kind "wall" for solid blocks (solid: true). Platform ledges go in platforms[], not obstacles.
+- Entity sizes: player/enemies/collectibles width/height ≤ 240. Platforms and obstacles may be up to width ${GAME_WORLD.width}.
+- Colors MUST be six-digit hex like #38bdf8 (never #fff, names, or rgba).
+- Jump / physics requests: set player.jumpStrength in 480–620 (snappy arcade) or up to ~700 for big hops; player.speed 280–360 to run faster; keep feel.bounce true; keep gameType platform-jumper when platforms exist.
+- Do not invent fields. Keep unique string ids. Return the FULL game object every time.
 
 OUTPUT
 - Return only structured data matching the schema: assistantMessage + game.
@@ -53,5 +61,5 @@ export function buildRefineUserMessage(request: RefineGameRequest): string {
 }
 
 export function buildRefineRepairMessage(issues: string): string {
-  return `Your previous response failed validation:\n${issues}\n\nReturn the corrected structured data only (assistantMessage + full game). Keep the same intent, fix every issue, and use only schema-supported values.`;
+  return `Your previous response failed validation:\n${issues}\n\nReturn the corrected structured data only (assistantMessage + full game). Keep the same gameplay intent. Fix every issue. Colors must be six-digit hex (#RRGGBB). Platforms/obstacles may be up to width ${GAME_WORLD.width} for a full floor; other entities stay ≤ 240 wide.`;
 }
