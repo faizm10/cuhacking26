@@ -101,3 +101,8 @@ Optional Supabase keys are documented in `frontend/.env.example`.
 - **Backend (optional):** Fastify, Zod, Google Gemini
 
 Each package has its own README (`frontend/README.md`, `backend/README.md`).
+
+## Contributors
+
+- [Yolanda Guo](https://github.com/yolandaguoo)
+- [Faiz Mustansar](https://github.com/faizm10)
