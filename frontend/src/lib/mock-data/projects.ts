@@ -29,15 +29,9 @@ export interface GameModeOption {
   hint?: string;
 }
 
-/** Modes with a dedicated, first-class engine/renderer (not arcade templates). */
-const DEDICATED_MODES: GameType[] = ["tic-tac-toe", "flappy-bird"];
-
-/** Editor game-mode selector: auto (AI decides) plus every explicit mode. */
+/** Editor game-mode selector — Auto plus the dedicated engines only. */
 export const GAME_MODE_OPTIONS: GameModeOption[] = [
   { value: "auto", label: "Auto", hint: "AI picks from your sketch" },
-  ...GAME_TYPE_OPTIONS.filter(
-    (option) => !DEDICATED_MODES.includes(option.value)
-  ),
   {
     value: "tic-tac-toe",
     label: "Tic-tac-toe",
