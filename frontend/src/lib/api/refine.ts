@@ -1,9 +1,11 @@
+import type { FlappySpec } from "@/components/game/flappy/flappyTypes";
 import type { TicTacToeSpec } from "@/components/game/tic-tac-toe/ticTacToeTypes";
 import type { RefineHistoryItem } from "@/lib/game/refine-request";
 import type { GameSpec } from "@/lib/game/schema";
 
 /**
- * Clients for POST /api/refine-game (arcade) and POST /api/refine-tic-tac-toe.
+ * Clients for POST /api/refine-game (arcade), /api/refine-tic-tac-toe, and
+ * /api/refine-flappy.
  */
 
 export interface RefineGameInput {
@@ -28,6 +30,18 @@ export interface RefineTicTacToeInput {
 
 export interface RefineTicTacToeResult {
   spec: TicTacToeSpec;
+  assistantMessage: string;
+  warnings: string[];
+}
+
+export interface RefineFlappyInput {
+  message: string;
+  spec: FlappySpec;
+  history?: RefineHistoryItem[];
+}
+
+export interface RefineFlappyResult {
+  spec: FlappySpec;
   assistantMessage: string;
   warnings: string[];
 }
@@ -115,6 +129,51 @@ export async function refineTicTacToe(
 
   if (!result.gameSpec) {
     throw new Error("The tic-tac-toe tuner returned an empty config.");
+  }
+
+  return {
+    spec: result.gameSpec,
+    assistantMessage: result.assistantMessage ?? "Done — I updated the game.",
+    warnings: result.warnings ?? [],
+  };
+}
+
+/** Chat edits for a live Flappy Bird game — only supported config fields. */
+export async function refineFlappy(
+  input: RefineFlappyInput
+): Promise<RefineFlappyResult> {
+  const response = await fetch("/api/refine-flappy", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: input.message,
+      gameSpec: input.spec,
+      history: input.history ?? [],
+    }),
+  });
+
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    throw new Error("The Flappy Bird tuner sent back an unreadable response.");
+  }
+
+  const result = body as {
+    success?: boolean;
+    gameSpec?: FlappySpec;
+    assistantMessage?: string;
+    warnings?: string[];
+  } & ApiFailure;
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.error?.message ?? "Could not apply that change. Please try again."
+    );
+  }
+
+  if (!result.gameSpec) {
+    throw new Error("The Flappy Bird tuner returned an empty config.");
   }
 
   return {

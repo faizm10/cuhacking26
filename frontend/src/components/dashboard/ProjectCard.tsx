@@ -6,6 +6,7 @@ import {
   Crosshair,
   Gamepad2,
   Grid3X3,
+  Bird,
   Map,
   MousePointerClick,
   MoreVertical,
@@ -41,6 +42,7 @@ const GAME_TYPE_ICONS: Record<GameType, LucideIcon> = {
   "simple-shooter": Crosshair,
   "platform-jumper": SquareDashedMousePointer,
   "tic-tac-toe": Grid3X3,
+  "flappy-bird": Bird,
 };
 
 const THUMBNAIL_GRADIENTS: Record<GameType, string> = {
@@ -53,6 +55,7 @@ const THUMBNAIL_GRADIENTS: Record<GameType, string> = {
   "simple-shooter": "from-red-500/20 via-accent to-secondary",
   "platform-jumper": "from-primary/25 via-accent to-secondary",
   "tic-tac-toe": "from-sky-500/25 via-orange-400/20 to-secondary",
+  "flappy-bird": "from-sky-400/25 via-amber-300/20 to-secondary",
 };
 
 const STATUS_STYLES: Record<ProjectStatus, string> = {

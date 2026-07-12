@@ -1,7 +1,7 @@
 import type { GameSpec, SupportedGameType } from "@/types/game";
 
-/** Arcade templates plus dedicated board-game modes. */
-export type GameType = SupportedGameType | "tic-tac-toe";
+/** Arcade templates plus dedicated first-class game modes. */
+export type GameType = SupportedGameType | "tic-tac-toe" | "flappy-bird";
 
 /** Value of the editor's game-mode selector. */
 export type GameModeValue = "auto" | GameType;

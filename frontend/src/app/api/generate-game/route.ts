@@ -6,6 +6,12 @@ import OpenAI, {
 import type { ResponseInput } from "openai/resources/responses/responses";
 
 import {
+  coerceFlappySpec,
+  DEFAULT_FLAPPY_SPEC,
+  flappyGenerationJsonSchema,
+  type FlappySpec,
+} from "@/components/game/flappy/flappyTypes";
+import {
   coerceTicTacToeSpec,
   DEFAULT_TIC_TAC_TOE_SPEC,
   ticTacToeGenerationJsonSchema,
@@ -21,6 +27,10 @@ import {
   type GenerateGameRequest,
 } from "@/lib/game/request";
 import { type GameSpec } from "@/lib/game/schema";
+import {
+  buildFlappyUserMessage,
+  FLAPPY_SYSTEM_PROMPT,
+} from "@/lib/openai/flappy-prompt";
 import {
   buildTicTacToeUserMessage,
   TIC_TAC_TOE_SYSTEM_PROMPT,
@@ -44,7 +54,7 @@ const REQUEST_TIMEOUT_MS = 75_000;
 interface SuccessBody {
   success: true;
   rendererType: RendererType;
-  gameSpec: GameSpec | TicTacToeSpec;
+  gameSpec: GameSpec | TicTacToeSpec | FlappySpec;
   interpretationSummary: string;
   warnings: string[];
 }
@@ -171,6 +181,94 @@ function mockTicTacToeResponse(): SuccessBody {
   };
 }
 
+/** Generate a Flappy Bird config. Coercion means this can never hard-fail:
+ * unusable model output degrades to safe defaults with a warning. */
+async function generateFlappy(
+  request: GenerateGameRequest,
+  client: OpenAI,
+  model: string,
+  startedAt: number
+): Promise<Response> {
+  const userContent: ResponseInput = [
+    {
+      role: "user",
+      content: [
+        ...(request.canvasImage
+          ? ([
+              {
+                type: "input_image",
+                image_url: request.canvasImage,
+                detail: "low",
+              },
+            ] as const)
+          : []),
+        { type: "input_text", text: buildFlappyUserMessage(request) },
+      ],
+    },
+  ];
+
+  const warnings: string[] = [];
+  let spec = structuredClone(DEFAULT_FLAPPY_SPEC);
+  let interpretationSummary =
+    "A cheerful Flappy Bird — tap or press space to flap through the pipes.";
+
+  try {
+    const response = await client.responses.create({
+      model,
+      instructions: FLAPPY_SYSTEM_PROMPT,
+      input: userContent,
+      text: {
+        format: {
+          type: "json_schema",
+          name: "playbox_flappy_bird",
+          schema: flappyGenerationJsonSchema,
+        },
+      },
+    });
+    const json = JSON.parse(response.output_text) as Record<string, unknown>;
+    spec = coerceFlappySpec(json.game ?? json);
+    if (typeof json.interpretationSummary === "string") {
+      interpretationSummary = json.interpretationSummary.slice(0, 300);
+    }
+  } catch (error) {
+    warnings.push("Used classic defaults — the AI styling pass didn't land");
+    devLog({
+      model,
+      template: "flappy-bird",
+      durationMs: Date.now() - startedAt,
+      fallback: true,
+      error: error instanceof Error ? error.name : "unknown",
+    });
+  }
+
+  devLog({
+    model,
+    template: "flappy-bird",
+    durationMs: Date.now() - startedAt,
+    valid: true,
+  });
+
+  const body: SuccessBody = {
+    success: true,
+    rendererType: "flappy-bird",
+    gameSpec: spec,
+    interpretationSummary,
+    warnings,
+  };
+  return Response.json(body);
+}
+
+function mockFlappyResponse(): SuccessBody {
+  return {
+    success: true,
+    rendererType: "flappy-bird",
+    gameSpec: structuredClone(DEFAULT_FLAPPY_SPEC),
+    interpretationSummary:
+      "Mock mode: a classic daytime Flappy Bird. Add OPENAI_API_KEY to style the bird, pipes, and difficulty from your drawing.",
+    warnings: [],
+  };
+}
+
 function mockResponse(request: GenerateGameRequest): SuccessBody {
   const requested = resolveGameType(request.selectedGameType);
   const seed = request.canvasObjects.length + request.userPrompt.length;
@@ -217,11 +315,13 @@ export async function POST(req: Request): Promise<Response> {
 
   if (process.env.USE_MOCK_OPENAI === "true") {
     devLog({ mode: "mock", template: request.selectedGameType });
-    return Response.json(
-      rendererType === "tic-tac-toe"
-        ? mockTicTacToeResponse()
-        : mockResponse(request)
-    );
+    if (rendererType === "tic-tac-toe") {
+      return Response.json(mockTicTacToeResponse());
+    }
+    if (rendererType === "flappy-bird") {
+      return Response.json(mockFlappyResponse());
+    }
+    return Response.json(mockResponse(request));
   }
 
   const apiKey =
@@ -243,6 +343,9 @@ export async function POST(req: Request): Promise<Response> {
 
   if (rendererType === "tic-tac-toe") {
     return generateTicTacToe(request, client, model, startedAt);
+  }
+  if (rendererType === "flappy-bird") {
+    return generateFlappy(request, client, model, startedAt);
   }
 
   const userContent: ResponseInput = [
