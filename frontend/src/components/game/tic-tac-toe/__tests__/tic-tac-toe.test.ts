@@ -230,6 +230,26 @@ describe("applyTicTacToeRefine", () => {
     expect(colors.spec.visualTheme.oColor).toBe("red");
   });
 
+  it("explains win-line color instead of recoloring symbols", () => {
+    const winLine = applyTicTacToeRefine(
+      DEFAULT_TIC_TAC_TOE_SPEC,
+      "if red wins, make the cross thing red to match the players color when they win"
+    );
+    expect(winLine.matched).toBe(true);
+    expect(winLine.spec.visualTheme).toEqual(
+      DEFAULT_TIC_TAC_TOE_SPEC.visualTheme
+    );
+    expect(winLine.assistantMessage.toLowerCase()).toMatch(/win line|winner/);
+
+    const classic = applyTicTacToeRefine(
+      DEFAULT_TIC_TAC_TOE_SPEC,
+      "blue should be blue and red should be red"
+    );
+    expect(classic.matched).toBe(true);
+    expect(classic.spec.visualTheme.xColor).toBe("red");
+    expect(classic.spec.visualTheme.oColor).toBe("blue");
+  });
+
   it("does not invent arcade fields", () => {
     const result = applyTicTacToeRefine(
       DEFAULT_TIC_TAC_TOE_SPEC,

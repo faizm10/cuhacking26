@@ -60,12 +60,79 @@ const CONTAINERS: Record<string, TicTacToeVisualTheme["containerStyle"]> = {
   grey: "charcoal",
 };
 
+const COLOR_PATTERN = Object.keys(COLOR_WORDS).join("|");
+
 function findColorWord<T extends string>(
   text: string,
   table: Record<string, T>
 ): T | null {
   for (const [word, value] of Object.entries(table)) {
     if (new RegExp(`\\b${word}\\b`).test(text)) return value;
+  }
+  return null;
+}
+
+/** True when the user is talking about the strike-through win line, not X. */
+function isWinLineRequest(text: string): boolean {
+  return (
+    /\b(winning\s*line|win\s*line|strike\s*through|strikethrough)\b/.test(
+      text
+    ) ||
+    (/\b(cross|line|stripe|slash)\b/.test(text) &&
+      /\b(win|wins|winner|when\s+\w+\s+wins|match(es)?\s+(the\s+)?(player|winner|color))\b/.test(
+        text
+      )) ||
+    /\bif\s+(red|blue|x|o|\w+)\s+wins\b/.test(text) ||
+    /\b(winner'?s?|winning)\s+(color|line|cross)\b/.test(text)
+  );
+}
+
+/**
+ * Pull an explicit X or O color from common chat phrasings.
+ * Avoids treating "cross" (win line) as the X symbol.
+ */
+function extractSymbolColor(
+  text: string,
+  symbol: "x" | "o"
+): SymbolColor | null {
+  const symbolAlt =
+    symbol === "x"
+      ? String.raw`(?:\bx(?:es)?\b|crosses|exes)`
+      : String.raw`(?:\bo(?:s)?\b|circles|noughts|zeros)`;
+
+  const patterns = [
+    // "make X red", "X should be blue", "set O to green"
+    new RegExp(
+      `${symbolAlt}\\s*(?:color\\s*)?(?:to\\s+|should\\s+be\\s+|is\\s+|as\\s+)?(${COLOR_PATTERN})\\b`
+    ),
+    // "red X", "blue O", "red crosses"
+    new RegExp(`\\b(${COLOR_PATTERN})\\s+${symbolAlt}`),
+    // "make the X color red"
+    new RegExp(
+      `${symbolAlt}\\s*(?:'s)?\\s*color\\s*(?:to\\s+|should\\s+be\\s+|is\\s+)?(${COLOR_PATTERN})\\b`
+    ),
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1] && COLOR_WORDS[match[1]]) return COLOR_WORDS[match[1]]!;
+  }
+  return null;
+}
+
+/** Classic "X red, O blue" style paired asks without naming both symbols. */
+function extractClassicPair(text: string): {
+  x: SymbolColor;
+  o: SymbolColor;
+} | null {
+  if (
+    /\b(red\s+(should\s+be\s+)?red|blue\s+(should\s+be\s+)?blue).*(blue\s+(should\s+be\s+)?blue|red\s+(should\s+be\s+)?red)\b/.test(
+      text
+    ) ||
+    /\b(classic|default|normal)\s+colou?rs?\b/.test(text) ||
+    /\bx\s+red\b.*\bo\s+blue\b|\bo\s+blue\b.*\bx\s+red\b/.test(text)
+  ) {
+    return { x: "red", o: "blue" };
   }
   return null;
 }
@@ -78,6 +145,20 @@ export function applyTicTacToeRefine(
   const spec = structuredClone(source);
   const text = message.toLowerCase();
   const changes: string[] = [];
+
+  // Win-line COLOR is engine-owned (matches the winner). Answer locally so the
+  // model does not "fix" it by recoloring X/O. Show/hide is handled below.
+  if (
+    isWinLineRequest(text) &&
+    !/\b(hide|show|off|on|disable|enable|remove|toggle)\b/.test(text)
+  ) {
+    return {
+      spec: source,
+      assistantMessage:
+        "The win line already matches the winner — blue when blue wins, red when red wins. Want to change the X or O colors themselves instead?",
+      matched: true,
+    };
+  }
 
   // Difficulty
   if (/\b(easier|too hard)\b/.test(text)) {
@@ -114,24 +195,22 @@ export function applyTicTacToeRefine(
     changes.push("you now play X");
   }
 
-  // Symbol colors ("make x blue", "o should be red"): look for a color word
-  // in the clause that follows each symbol mention.
-  const xIndex = text.search(/\bx\b/);
-  if (xIndex >= 0) {
-    const clause = text.slice(xIndex).split(/\bo\b/)[0] ?? "";
-    const color = findColorWord(clause, COLOR_WORDS);
-    if (color) {
-      spec.visualTheme.xColor = color;
-      changes.push(`X is ${color}`);
+  // Symbol colors — precise patterns only (no loose "any color near x").
+  const classic = extractClassicPair(text);
+  if (classic) {
+    spec.visualTheme.xColor = classic.x;
+    spec.visualTheme.oColor = classic.o;
+    changes.push(`X is ${classic.x}`, `O is ${classic.o}`);
+  } else {
+    const xColor = extractSymbolColor(text, "x");
+    const oColor = extractSymbolColor(text, "o");
+    if (xColor) {
+      spec.visualTheme.xColor = xColor;
+      changes.push(`X is ${xColor}`);
     }
-  }
-  const oIndex = text.search(/\bo\b/);
-  if (oIndex >= 0) {
-    const clause = text.slice(oIndex).split(/\bx\b/)[0] ?? "";
-    const color = findColorWord(clause, COLOR_WORDS);
-    if (color) {
-      spec.visualTheme.oColor = color;
-      changes.push(`O is ${color}`);
+    if (oColor) {
+      spec.visualTheme.oColor = oColor;
+      changes.push(`O is ${oColor}`);
     }
   }
   if (spec.visualTheme.xColor === spec.visualTheme.oColor) {
@@ -140,10 +219,16 @@ export function applyTicTacToeRefine(
   }
 
   // Board scale
-  if (/\b(board|grid)\b.*\b(bigger|larger)\b|\b(bigger|larger)\b.*\b(board|grid)\b/.test(text)) {
+  if (
+    /\b(board|grid)\b.*\b(bigger|larger)\b|\b(bigger|larger)\b.*\b(board|grid)\b/.test(
+      text
+    )
+  ) {
     spec.visualTheme.boardScale = "large";
     changes.push("the board is larger");
-  } else if (/\b(board|grid)\b.*\bsmaller\b|\bsmaller\b.*\b(board|grid)\b/.test(text)) {
+  } else if (
+    /\b(board|grid)\b.*\bsmaller\b|\bsmaller\b.*\b(board|grid)\b/.test(text)
+  ) {
     spec.visualTheme.boardScale = "normal";
     changes.push("the board is back to normal size");
   }
@@ -189,6 +274,12 @@ export function applyTicTacToeRefine(
     spec.features.showTurnIndicator = !wantsOff;
     changes.push(`the turn indicator is ${wantsOff ? "hidden" : "shown"}`);
   }
+  if (/winning\s*line|win\s*line|highlight\s*win/.test(text)) {
+    spec.features.highlightWinningLine = !wantsOff;
+    changes.push(
+      `the winning-line highlight is ${wantsOff ? "off" : "on"}`
+    );
+  }
 
   // Restart: the panel remounts the game on every successful refine, so an
   // unchanged spec is all a restart needs.
@@ -212,4 +303,4 @@ export function applyTicTacToeRefine(
 
 /** Fallback reply listing what chat can change, for unsupported asks. */
 export const TIC_TAC_TOE_UNSUPPORTED_MESSAGE =
-  "For tic-tac-toe I can tweak: AI difficulty, vs AI or 2 players, your symbol, X/O colors, backgrounds, hand-drawn/cartoon/minimal style, board size, confetti, sound, and restarts.";
+  "For tic-tac-toe I can tweak: AI difficulty, vs AI or 2 players, your symbol, X/O colors, backgrounds, hand-drawn/cartoon/minimal style, board size, confetti, sound, and restarts. The win line always matches the winner’s color automatically.";

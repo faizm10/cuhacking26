@@ -90,6 +90,8 @@ export function TicTacToeRenderer({ spec: initialSpec }: TicTacToeRendererProps)
   const container = CONTAINER_STYLES[spec.visualTheme.containerStyle];
   const boardBackground = BOARD_BACKGROUNDS[spec.visualTheme.boardBackground];
   const playerColor = spec.playerSymbol === "X" ? xColor : oColor;
+  const winLineColor =
+    state.winner === "X" ? xColor : state.winner === "O" ? oColor : playerColor;
 
   const clearTimers = useCallback(() => {
     if (aiTimerRef.current !== null) window.clearTimeout(aiTimerRef.current);
@@ -226,7 +228,7 @@ export function TicTacToeRenderer({ spec: initialSpec }: TicTacToeRendererProps)
         boardBackground={boardBackground}
         xColor={xColor}
         oColor={oColor}
-        lineColor={playerColor}
+        lineColor={winLineColor}
         shakeCell={shakeCell}
         focusCell={focusCell}
         onFocusCellChange={setFocusCell}

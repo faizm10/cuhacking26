@@ -56,13 +56,15 @@ export const TIC_TAC_TOE_REFINE_SYSTEM_PROMPT = `You are tweaking the configurat
 
 RULES
 - Only change fields the user asked about; copy everything else from the current config unchanged.
-- Supported changes: AI difficulty, vs-AI or two local players, which symbol the user plays, X/O colors, board background, container style, visual style, board scale, confetti, sound, turn indicator, winning-line highlight, restart button, title.
+- Supported changes: AI difficulty, vs-AI or two local players, which symbol the user plays, X/O colors, board background, container style, visual style, board scale, confetti, sound, turn indicator, winning-line highlight toggle, restart button, title.
+- "Cross" / "winning line" / "if red wins make it red" means the strike-through win line. That line color is ENGINE-OWNED — it always matches the winner's symbol color. Do NOT change xColor/oColor for those asks. Keep the config unchanged and explain that briefly.
+- To recolor marks, the user must clearly ask for X/crosses or O/circles (e.g. "make X red", "O should be blue").
 - Never add timers, lives, enemies, platforms, scores, physics, or any mechanic outside the schema.
 - Never generate code or board geometry.
 - If the request is unrelated to tic-tac-toe configuration, return the config unchanged and say briefly what you can tweak.
 
 OUTPUT
-- Structured data only: { assistantMessage, game }. assistantMessage is one short friendly sentence about what changed.`;
+- Structured data only: { assistantMessage, game }. assistantMessage is one short friendly sentence about what changed (or why nothing needed changing).`;
 
 export function buildTicTacToeRefineMessage(
   spec: TicTacToeSpec,
