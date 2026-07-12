@@ -85,6 +85,20 @@ function useRotatingStatus(active: boolean, lines: readonly string[]): string {
   return active ? (lines[index] ?? lines[0]!) : lines[0]!;
 }
 
+/** Compact keyboard legend for the Play header — matches each engine. */
+function keyboardBindingsFor(game: GeneratedGame): string {
+  switch (game.rendererType) {
+    case "platformer":
+      return "Move: ←→ / A D · Jump: Space / ↑ · Pause: P · Restart: R";
+    case "flappy-bird":
+      return "Flap: Space / ↑ / W · Pause: P";
+    case "tic-tac-toe":
+      return "Move: ←→↑↓ · Place: Enter / Space";
+    case "arcade":
+      return `${game.gameSpec.controls.instructions} · P pause · R restart`;
+  }
+}
+
 interface LevelPanelProps {
   isGenerating: boolean;
   game: GeneratedGame | null;
@@ -113,6 +127,7 @@ export function LevelPanel({
   onChatSend,
 }: LevelPanelProps) {
   const showChat = Boolean(game && !error && onChatSend);
+  const keyboardBindings = game ? keyboardBindingsFor(game) : null;
   const generateStatus = useRotatingStatus(
     isGenerating && !isRefining,
     GENERATE_STATUS_LINES
@@ -147,9 +162,19 @@ export function LevelPanel({
   return (
     <section className="flex h-full min-h-0 flex-col border-l border-border bg-muted/30">
       <div className="flex h-10 shrink-0 items-center justify-between gap-2 border-b border-border px-3">
-        <h2 className="text-sm font-medium">Play</h2>
+        <div className="flex min-w-0 items-center gap-2">
+          <h2 className="shrink-0 text-sm font-medium">Play</h2>
+          {game && !isGenerating && !error && keyboardBindings && (
+            <p
+              className="hidden truncate text-[11px] text-muted-foreground sm:block"
+              title={keyboardBindings}
+            >
+              {keyboardBindings}
+            </p>
+          )}
+        </div>
         {game && !isGenerating && !error && (
-          <div className="flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1">
             <Button
               size="sm"
               variant="ghost"

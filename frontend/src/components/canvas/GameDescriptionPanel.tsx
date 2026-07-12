@@ -29,7 +29,10 @@ export function GameDescriptionPanel({
           What should happen in this game?
         </Label>
         <div className="flex items-center gap-1.5">
-          <span className="text-[11px] text-muted-foreground">Game mode</span>
+          <span className="text-[11px] text-muted-foreground">
+            Game mode{" "}
+            <span className="opacity-60">(1–4)</span>
+          </span>
           <GameModeSelect
             value={mode}
             onChange={onModeChange}

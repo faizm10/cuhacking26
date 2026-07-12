@@ -36,17 +36,17 @@ export const GAME_MODE_OPTIONS: GameModeOption[] = [
   {
     value: "tic-tac-toe",
     label: "Tic-tac-toe",
-    hint: "Classic 3×3 board game",
+    hint: "3×3 — arrows + Enter / click",
   },
   {
     value: "flappy-bird",
     label: "Flappy Bird",
-    hint: "Tap-to-flap through pipes",
+    hint: "Space / ↑ / tap to flap",
   },
   {
     value: "platformer",
     label: "Platformer",
-    hint: "Collect coins, reach the flag",
+    hint: "←→ / A D move · Space jump",
   },
 ];
 

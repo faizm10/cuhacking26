@@ -55,9 +55,18 @@ export function DemoSection() {
           <motion.div
             whileHover={{ scale: 1.01, y: -4 }}
             transition={{ type: "spring", stiffness: 300, damping: 22 }}
-            className="aspect-video w-full max-w-[896px] overflow-hidden rounded-2xl border border-border bg-landing-surface"
+            className="aspect-video w-full max-w-[896px] overflow-hidden rounded-2xl border border-border bg-landing-surface shadow-soft"
           >
-            <div className="h-full min-h-[280px] bg-[#eee] sm:min-h-[400px]" />
+            <video
+              className="h-full w-full object-cover"
+              src="/demo.mp4"
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              aria-label="PlayBox demo — sketch to playable game"
+            />
           </motion.div>
         </motion.div>
       </div>

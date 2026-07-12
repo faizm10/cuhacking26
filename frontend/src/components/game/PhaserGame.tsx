@@ -43,6 +43,23 @@ export function PhaserGame({ level }: PhaserGameProps) {
           debug: false,
         },
       },
+      input: {
+        keyboard: {
+          // Stop the browser from scrolling / focusing chrome while playing.
+          capture: [
+            Phaser.Input.Keyboard.KeyCodes.LEFT,
+            Phaser.Input.Keyboard.KeyCodes.RIGHT,
+            Phaser.Input.Keyboard.KeyCodes.UP,
+            Phaser.Input.Keyboard.KeyCodes.DOWN,
+            Phaser.Input.Keyboard.KeyCodes.SPACE,
+            Phaser.Input.Keyboard.KeyCodes.W,
+            Phaser.Input.Keyboard.KeyCodes.A,
+            Phaser.Input.Keyboard.KeyCodes.D,
+            Phaser.Input.Keyboard.KeyCodes.P,
+            Phaser.Input.Keyboard.KeyCodes.R,
+          ],
+        },
+      },
       scale: {
         // Sized manually below via ResizeObserver — RESIZE mode can boot at
         // 0x0 when the flex parent hasn't been laid out yet.
