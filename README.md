@@ -58,8 +58,9 @@ The backend folder is optional and not used by the editor today.
 | ---- | ---- |
 | `tic-tac-toe` | Classic 3×3 board vs AI |
 | `flappy-bird` | Tap / space to flap through pipes |
+| `platformer` | Your sketch becomes the level — collect every coin, then reach the flag |
 
-Choose **Auto** and the AI picks a mode from your sketch. If you pick Tic-tac-toe or Flappy Bird yourself, that mode always wins — the app will not turn them into a generic arcade game.
+Choose **Auto** and the AI picks a mode from your sketch. If you pick Tic-tac-toe, Flappy Bird, or Platformer yourself, that mode always wins — the app will not turn them into a generic arcade game.
 
 ---
 
@@ -147,6 +148,7 @@ After Generate, the chat starts empty on purpose. A short summary of what the AI
 | `POST /api/refine-game` | Chat tweaks for arcade games |
 | `POST /api/refine-tic-tac-toe` | Chat tweaks for tic-tac-toe |
 | `POST /api/refine-flappy` | Chat tweaks for Flappy Bird |
+| `POST /api/refine-platformer` | Chat tweaks for the platformer level |
 
 ---
 
