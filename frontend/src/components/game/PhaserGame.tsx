@@ -3,7 +3,10 @@
 import { useEffect, useRef } from "react";
 import Phaser from "phaser";
 
-import { createPlatformerScene, GAME_COLORS } from "@/components/game/createPlatformerScene";
+import {
+  createPlatformerScene,
+  skyColorFor,
+} from "@/components/game/createPlatformerScene";
 import type { Level } from "@/types";
 
 interface PhaserGameProps {
@@ -23,33 +26,50 @@ export function PhaserGame({ level }: PhaserGameProps) {
     gameRef.current = null;
     parent.replaceChildren();
 
-    const width = parent.clientWidth || 640;
-    const height = parent.clientHeight || 360;
+    const width = Math.max(320, parent.clientWidth);
+    const height = Math.max(240, parent.clientHeight);
 
     const game = new Phaser.Game({
       type: Phaser.AUTO,
       parent,
       width,
       height,
-      backgroundColor: GAME_COLORS.background,
+      backgroundColor: skyColorFor(level.theme),
       physics: {
         default: "arcade",
         arcade: {
-          gravity: { x: 0, y: level.world.gravity },
+          // The scene drives motion via stepPlatformerMotion; world gravity off.
+          gravity: { x: 0, y: 0 },
           debug: false,
         },
       },
       scale: {
-        mode: Phaser.Scale.RESIZE,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
+        // Sized manually below via ResizeObserver — RESIZE mode can boot at
+        // 0x0 when the flex parent hasn't been laid out yet.
+        mode: Phaser.Scale.NONE,
       },
       scene: [createPlatformerScene(level)],
+      // Sound comes from a tiny WebAudio synth inside the scene.
       audio: { noAudio: true },
     });
 
     gameRef.current = game;
+    if (process.env.NODE_ENV === "development") {
+      // Handy for QA scripting and debugging from the console.
+      (window as unknown as Record<string, unknown>).__playboxGame = game;
+    }
+
+    const observer = new ResizeObserver(() => {
+      const w = parent.clientWidth;
+      const h = parent.clientHeight;
+      if (w > 0 && h > 0 && game.isRunning) {
+        game.scale.resize(w, h);
+      }
+    });
+    observer.observe(parent);
 
     return () => {
+      observer.disconnect();
       game.destroy(true);
       if (gameRef.current === game) gameRef.current = null;
     };
@@ -58,7 +78,7 @@ export function PhaserGame({ level }: PhaserGameProps) {
   return (
     <div
       ref={containerRef}
-      className="h-full w-full overflow-hidden rounded-lg bg-[#1a1a2e]"
+      className="h-full w-full overflow-hidden rounded-lg"
       data-phaser-root
     />
   );
