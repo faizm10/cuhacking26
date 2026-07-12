@@ -48,6 +48,12 @@ const FlappyRenderer = dynamic(
   { ssr: false, loading: gameLoading }
 );
 
+const PhaserGame = dynamic(
+  () =>
+    import("@/components/game/PhaserGame").then((mod) => mod.PhaserGame),
+  { ssr: false, loading: gameLoading }
+);
+
 const GENERATE_STATUS_LINES = [
   "Reading your sketch…",
   "Picking a game style…",
@@ -257,6 +263,11 @@ export function LevelPanel({
                   <FlappyRenderer
                     key={`play-${gameRevision}`}
                     spec={game.gameSpec}
+                  />
+                ) : game.rendererType === "platformer" ? (
+                  <PhaserGame
+                    key={`play-${gameRevision}`}
+                    level={game.gameSpec}
                   />
                 ) : (
                   <CanvasGame
