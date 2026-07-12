@@ -86,10 +86,10 @@ interface Stage {
   left: number;
 }
 
-function medalFor(score: number): { label: string; color: string } | null {
-  if (score >= 30) return { label: "Gold", color: "#facc15" };
-  if (score >= 15) return { label: "Silver", color: "#cbd5e1" };
-  if (score >= 5) return { label: "Bronze", color: "#d98c5f" };
+function medalFor(score: number): string | null {
+  if (score >= 30) return "#facc15";
+  if (score >= 15) return "#cbd5e1";
+  if (score >= 5) return "#d98c5f";
   return null;
 }
 
@@ -482,64 +482,42 @@ export function FlappyRenderer({ spec }: FlappyRendererProps) {
             <PauseButton paused={phase === "paused"} onToggle={togglePause} />
           )}
 
-          {/* Ready overlay */}
+          {/* Ready — tap anywhere / space; no on-screen copy */}
           {phase === "ready" && (
-            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
-              <h2
-                className="font-heading text-3xl font-black text-white drop-shadow-[0_2px_0_rgba(0,0,0,0.35)]"
-                style={{ WebkitTextStroke: "1.5px rgba(0,0,0,0.3)" }}
-              >
-                {spec.title}
-              </h2>
-              <div className="flappy-bob mt-2 rounded-full bg-white/85 px-4 py-2 text-sm font-bold text-slate-700 shadow-md backdrop-blur">
-                Tap or press Space to flap
-              </div>
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div className="flappy-bob size-14 rounded-full border-4 border-white/90 bg-white/25 shadow-lg backdrop-blur-sm" />
             </div>
           )}
 
-          {/* Paused overlay */}
+          {/* Paused — icon-only dim overlay (resume via the pause button) */}
           {phase === "paused" && (
-            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/35 backdrop-blur-[1px]">
-              <span className="font-heading text-3xl font-black text-white drop-shadow">
-                Paused
-              </span>
-            </div>
+            <div className="pointer-events-none absolute inset-0 bg-slate-900/35 backdrop-blur-[1px]" />
           )}
 
-          {/* Game over card */}
+          {/* Game over — scores as numbers only, restart is icon-only */}
           {phase === "gameover" && (
             <div className="absolute inset-0 flex items-center justify-center bg-slate-900/35 px-6">
               <div
                 key={shakeKey}
-                className="flappy-card-in flappy-shake w-full max-w-[18rem] rounded-3xl bg-white/95 p-6 text-center shadow-2xl backdrop-blur"
+                className="flappy-card-in flappy-shake w-full max-w-[16rem] rounded-3xl bg-white/95 p-5 text-center shadow-2xl backdrop-blur"
               >
-                <h2 className="font-heading text-2xl font-black text-slate-800">
-                  Game Over
-                </h2>
                 {medal && (
                   <div
-                    className="mx-auto mt-3 flex size-14 items-center justify-center rounded-full text-xs font-bold text-slate-800 shadow-inner"
+                    className="mx-auto mb-3 size-12 rounded-full shadow-inner"
                     style={{
-                      background: `radial-gradient(circle at 35% 30%, #ffffff, ${medal.color})`,
+                      background: `radial-gradient(circle at 35% 30%, #ffffff, ${medal})`,
                     }}
-                  >
-                    {medal.label}
-                  </div>
+                    aria-hidden
+                  />
                 )}
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  <div className="rounded-xl bg-slate-100 py-2">
-                    <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                      Score
-                    </div>
-                    <div className="font-heading text-2xl font-black text-slate-800">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-xl bg-slate-100 py-3">
+                    <div className="font-heading text-2xl font-black tabular-nums text-slate-800">
                       {view.score}
                     </div>
                   </div>
-                  <div className="rounded-xl bg-amber-100 py-2">
-                    <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">
-                      Best
-                    </div>
-                    <div className="font-heading text-2xl font-black text-amber-800">
+                  <div className="rounded-xl bg-amber-100 py-3">
+                    <div className="font-heading text-2xl font-black tabular-nums text-amber-800">
                       {best}
                     </div>
                   </div>
