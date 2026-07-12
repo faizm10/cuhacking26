@@ -4,6 +4,7 @@ import {
   CircleDollarSign,
   Copy,
   Crosshair,
+  Flag,
   Gamepad2,
   Grid3X3,
   Bird,
@@ -43,6 +44,7 @@ const GAME_TYPE_ICONS: Record<GameType, LucideIcon> = {
   "platform-jumper": SquareDashedMousePointer,
   "tic-tac-toe": Grid3X3,
   "flappy-bird": Bird,
+  platformer: Flag,
 };
 
 const THUMBNAIL_GRADIENTS: Record<GameType, string> = {
@@ -56,6 +58,7 @@ const THUMBNAIL_GRADIENTS: Record<GameType, string> = {
   "platform-jumper": "from-primary/25 via-accent to-secondary",
   "tic-tac-toe": "from-sky-500/25 via-orange-400/20 to-secondary",
   "flappy-bird": "from-sky-400/25 via-amber-300/20 to-secondary",
+  platformer: "from-emerald-400/25 via-amber-300/20 to-secondary",
 };
 
 const STATUS_STYLES: Record<ProjectStatus, string> = {
