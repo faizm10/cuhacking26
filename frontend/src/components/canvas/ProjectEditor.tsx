@@ -12,7 +12,12 @@ import type { ChatMessage } from "@/components/canvas/GameChat";
 import { GameDescriptionPanel } from "@/components/canvas/GameDescriptionPanel";
 import { LevelPanel } from "@/components/canvas/LevelPanel";
 import { generateGame, type GenerateGameResult } from "@/lib/api/generate";
-import { refineFlappy, refineGame, refineTicTacToe } from "@/lib/api/refine";
+import {
+  refineFlappy,
+  refineGame,
+  refinePlatformer,
+  refineTicTacToe,
+} from "@/lib/api/refine";
 import {
   filterImageFiles,
   validateImageFiles,
@@ -44,6 +49,7 @@ function gameTypeFromResult(
   if (!result) return undefined;
   if (result.rendererType === "tic-tac-toe") return "tic-tac-toe";
   if (result.rendererType === "flappy-bird") return "flappy-bird";
+  if (result.rendererType === "platformer") return "platformer";
   if (result.rendererType === "arcade" && "gameType" in result.gameSpec) {
     return result.gameSpec.gameType as GameType;
   }
@@ -208,6 +214,19 @@ export function ProjectEditor({
           gameSpec: flappyRefined.spec,
           interpretationSummary: result.interpretationSummary,
           warnings: flappyRefined.warnings,
+        });
+      } else if (result.rendererType === "platformer") {
+        const platformerRefined = await refinePlatformer({
+          message,
+          spec: result.gameSpec,
+          history,
+        });
+        refined = platformerRefined;
+        setResult({
+          rendererType: "platformer",
+          gameSpec: platformerRefined.spec,
+          interpretationSummary: result.interpretationSummary,
+          warnings: platformerRefined.warnings,
         });
       } else {
         const canvasImage = await compressScreenshotForVision(
