@@ -21,16 +21,26 @@ import { modelGenerationJsonSchema } from "@/lib/game/coordinates";
 import { EXAMPLE_GAMES, pickExampleGame } from "@/lib/game/fixtures";
 import { rendererTypeForMode, type RendererType } from "@/lib/game/generated";
 import { applyLayoutPass } from "@/lib/game/layout";
+import {
+  DEFAULT_PLATFORMER_LEVEL,
+  platformerGenerationJsonSchema,
+  repairLevel,
+} from "@/lib/game/platformer-level";
 import { repairGameSpec, resolveGameType } from "@/lib/game/repair";
 import {
   generateGameRequestSchema,
   type GenerateGameRequest,
 } from "@/lib/game/request";
 import { type GameSpec } from "@/lib/game/schema";
+import type { Level } from "@/types";
 import {
   buildFlappyUserMessage,
   FLAPPY_SYSTEM_PROMPT,
 } from "@/lib/openai/flappy-prompt";
+import {
+  buildPlatformerUserMessage,
+  PLATFORMER_SYSTEM_PROMPT,
+} from "@/lib/openai/platformer-prompt";
 import {
   buildTicTacToeUserMessage,
   TIC_TAC_TOE_SYSTEM_PROMPT,
@@ -54,7 +64,7 @@ const REQUEST_TIMEOUT_MS = 75_000;
 interface SuccessBody {
   success: true;
   rendererType: RendererType;
-  gameSpec: GameSpec | TicTacToeSpec | FlappySpec;
+  gameSpec: GameSpec | TicTacToeSpec | FlappySpec | Level;
   interpretationSummary: string;
   warnings: string[];
 }
@@ -258,6 +268,97 @@ async function generateFlappy(
   return Response.json(body);
 }
 
+/** Generate a platformer LEVEL from the sketch. Repair means this can never
+ * hard-fail: unusable model output degrades to the demo meadow with a warning. */
+async function generatePlatformer(
+  request: GenerateGameRequest,
+  client: OpenAI,
+  model: string,
+  startedAt: number
+): Promise<Response> {
+  const userContent: ResponseInput = [
+    {
+      role: "user",
+      content: [
+        ...(request.canvasImage
+          ? ([
+              {
+                type: "input_image",
+                image_url: request.canvasImage,
+                detail: "low",
+              },
+            ] as const)
+          : []),
+        { type: "input_text", text: buildPlatformerUserMessage(request) },
+      ],
+    },
+  ];
+
+  let level = structuredClone(DEFAULT_PLATFORMER_LEVEL);
+  let warnings: string[] = [];
+  let interpretationSummary =
+    "A coin-collecting platformer — grab every coin, then reach the flag.";
+
+  try {
+    const response = await client.responses.create({
+      model,
+      instructions: PLATFORMER_SYSTEM_PROMPT,
+      input: userContent,
+      text: {
+        format: {
+          type: "json_schema",
+          name: "playbox_platformer",
+          schema: platformerGenerationJsonSchema,
+        },
+      },
+    });
+    const json = JSON.parse(response.output_text) as Record<string, unknown>;
+    const repaired = repairLevel(json.game ?? json);
+    level = repaired.level;
+    warnings = repaired.warnings;
+    if (typeof json.interpretationSummary === "string") {
+      interpretationSummary = json.interpretationSummary.slice(0, 300);
+    }
+  } catch (error) {
+    warnings = ["Used the demo meadow — the AI level pass didn't land"];
+    devLog({
+      model,
+      template: "platformer",
+      durationMs: Date.now() - startedAt,
+      fallback: true,
+      error: error instanceof Error ? error.name : "unknown",
+    });
+  }
+
+  devLog({
+    model,
+    template: "platformer",
+    durationMs: Date.now() - startedAt,
+    valid: true,
+    repairWarnings: warnings,
+  });
+
+  const body: SuccessBody = {
+    success: true,
+    rendererType: "platformer",
+    gameSpec: level,
+    interpretationSummary,
+    warnings,
+  };
+  return Response.json(body);
+}
+
+function mockPlatformerResponse(): SuccessBody {
+  return {
+    success: true,
+    rendererType: "platformer",
+    gameSpec: structuredClone(DEFAULT_PLATFORMER_LEVEL),
+    interpretationSummary:
+      "Mock mode: the Coin Meadow demo level — collect all 8 coins, then reach the flag. Add OPENAI_API_KEY to build the level from your drawing.",
+    warnings: [],
+  };
+}
+
 function mockFlappyResponse(): SuccessBody {
   return {
     success: true,
@@ -321,6 +422,9 @@ export async function POST(req: Request): Promise<Response> {
     if (rendererType === "flappy-bird") {
       return Response.json(mockFlappyResponse());
     }
+    if (rendererType === "platformer") {
+      return Response.json(mockPlatformerResponse());
+    }
     return Response.json(mockResponse(request));
   }
 
@@ -346,6 +450,9 @@ export async function POST(req: Request): Promise<Response> {
   }
   if (rendererType === "flappy-bird") {
     return generateFlappy(request, client, model, startedAt);
+  }
+  if (rendererType === "platformer") {
+    return generatePlatformer(request, client, model, startedAt);
   }
 
   const userContent: ResponseInput = [
