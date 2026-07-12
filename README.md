@@ -69,7 +69,6 @@ Choose **Auto** and the AI picks a mode from your sketch. If you pick Tic-tac-to
 | ------ | ---------- |
 | `frontend/` | The main app — landing page, dashboard, editor, and OpenAI API routes |
 | `backend/` | Optional Fastify + Gemini service (not wired into the editor UI yet) |
-| `figma/` | Design sandbox — not needed to run PlayBox |
 
 More detail lives in `frontend/README.md` and `backend/README.md`.
 
