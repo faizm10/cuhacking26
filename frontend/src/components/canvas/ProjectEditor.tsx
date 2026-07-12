@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { CanvasImageDropZone } from "@/components/canvas/CanvasImageDropZone";
 import {
@@ -18,6 +18,8 @@ import {
   validateImageFiles,
 } from "@/lib/canvas/image-upload";
 import { compressScreenshotForVision } from "@/lib/canvas/compress-screenshot";
+import { GAME_TYPE_LABELS } from "@/lib/mock-data/projects";
+import { updateProject } from "@/lib/storage/projects";
 import type { GameModeValue, GameType } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -26,10 +28,26 @@ interface ProjectEditorProps {
   projectName: string;
   gameType?: GameType;
   gameTypeLabel?: string;
+  initialDescription?: string;
+  initialMode?: GameModeValue;
+  initialChatMessages?: ChatMessage[];
+  initialResult?: GenerateGameResult | null;
 }
 
 function newMessageId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function gameTypeFromResult(
+  result: GenerateGameResult | null
+): GameType | undefined {
+  if (!result) return undefined;
+  if (result.rendererType === "tic-tac-toe") return "tic-tac-toe";
+  if (result.rendererType === "flappy-bird") return "flappy-bird";
+  if (result.rendererType === "arcade" && "gameType" in result.gameSpec) {
+    return result.gameSpec.gameType as GameType;
+  }
+  return undefined;
 }
 
 export function ProjectEditor({
@@ -37,22 +55,51 @@ export function ProjectEditor({
   projectName,
   gameType,
   gameTypeLabel,
+  initialDescription = "",
+  initialMode,
+  initialChatMessages = [],
+  initialResult = null,
 }: ProjectEditorProps) {
   const boardRef = useRef<DrawingBoardHandle>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRefining, setIsRefining] = useState(false);
   /** Selected game mode — an explicit choice is authoritative at generate. */
-  const [mode, setMode] = useState<GameModeValue>(gameType ?? "auto");
-  const [result, setResult] = useState<GenerateGameResult | null>(null);
+  const [mode, setMode] = useState<GameModeValue>(
+    initialMode ?? gameType ?? "auto"
+  );
+  const [result, setResult] = useState<GenerateGameResult | null>(initialResult);
   const [error, setError] = useState<string | null>(null);
-  const [description, setDescription] = useState("");
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [description, setDescription] = useState(initialDescription);
+  const [chatMessages, setChatMessages] =
+    useState<ChatMessage[]>(initialChatMessages);
   /** Remount the play canvas when generate/refine produces a new GameSpec. */
   const [gameRevision, setGameRevision] = useState(0);
   /** After chat tweaks, restart play immediately so edits are obvious. */
   const [autoPlay, setAutoPlay] = useState(false);
+  const [displayGameTypeLabel, setDisplayGameTypeLabel] = useState(gameTypeLabel);
 
   const showSplit = isGenerating || result !== null || error !== null;
+  const skipFirstSave = useRef(true);
+
+  // Persist editor snapshot whenever the important fields change.
+  useEffect(() => {
+    if (skipFirstSave.current) {
+      skipFirstSave.current = false;
+      return;
+    }
+    const inferredType = gameTypeFromResult(result);
+    updateProject(projectId, {
+      description,
+      mode,
+      chatMessages,
+      result,
+      status: result ? "playable" : "draft",
+      gameType: inferredType,
+    });
+    if (inferredType && inferredType in GAME_TYPE_LABELS) {
+      setDisplayGameTypeLabel(GAME_TYPE_LABELS[inferredType]);
+    }
+  }, [projectId, description, mode, chatMessages, result]);
 
   const handleUploadImages = useCallback(async (files: File[]) => {
     const images = filterImageFiles(files);
@@ -77,6 +124,7 @@ export function ProjectEditor({
   const handleGenerate = async () => {
     setIsGenerating(true);
     setError(null);
+    updateProject(projectId, { status: "generating" });
 
     try {
       const canvasData = boardRef.current?.getCanvasData() ?? null;
@@ -106,6 +154,9 @@ export function ProjectEditor({
       setError(
         err instanceof Error ? err.message : "Could not generate the game"
       );
+      updateProject(projectId, {
+        status: result ? "playable" : "draft",
+      });
     } finally {
       setIsGenerating(false);
     }
@@ -133,7 +184,6 @@ export function ProjectEditor({
         warnings: string[];
       };
       if (result.rendererType === "tic-tac-toe") {
-        // Tic-tac-toe chat edits only touch its own config schema.
         const tttRefined = await refineTicTacToe({
           message,
           spec: result.gameSpec,
@@ -147,7 +197,6 @@ export function ProjectEditor({
           warnings: tttRefined.warnings,
         });
       } else if (result.rendererType === "flappy-bird") {
-        // Flappy Bird chat edits only touch its own config schema.
         const flappyRefined = await refineFlappy({
           message,
           spec: result.gameSpec,
@@ -209,7 +258,7 @@ export function ProjectEditor({
     <div className="flex h-screen flex-col">
       <EditorTopBar
         projectName={projectName}
-        gameTypeLabel={gameTypeLabel}
+        gameTypeLabel={displayGameTypeLabel}
         isGenerating={isGenerating || isRefining}
         onGenerate={handleGenerate}
         onUploadImages={handleUploadImages}

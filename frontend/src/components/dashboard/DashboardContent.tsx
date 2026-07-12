@@ -1,40 +1,66 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { DashboardHeader } from "@/components/layout/DashboardHeader";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 import { NewProjectModal } from "@/components/dashboard/NewProjectModal";
 import { ProjectGrid } from "@/components/dashboard/ProjectGrid";
-import { MOCK_PROJECTS } from "@/lib/mock-data/projects";
+import {
+  createProject,
+  deleteProject,
+  duplicateProject,
+  listProjects,
+  renameProject,
+} from "@/lib/storage/projects";
 import type { NewProjectInput, Project } from "@/types";
 
-// Session-created projects only live in local state, so the editor page can't
-// look them up — pass the name along until Supabase owns the data.
-const editorPath = (project: Project) =>
-  `/project/${project.id}?name=${encodeURIComponent(project.name)}`;
+const editorPath = (project: Project) => `/project/${project.id}`;
 
 export function DashboardContent() {
   const router = useRouter();
-  // Local mock state — swap for a Supabase query once the backend exists.
-  const [projects, setProjects] = useState<Project[]>(MOCK_PROJECTS);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [ready, setReady] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
 
+  useEffect(() => {
+    setProjects(listProjects());
+    setReady(true);
+  }, []);
+
+  const refresh = () => setProjects(listProjects());
+
   const handleCreate = (input: NewProjectInput) => {
-    const project: Project = {
-      id: crypto.randomUUID(),
-      name: input.name,
-      status: "draft",
-      thumbnailUrl: null,
-      updatedAt: new Date().toISOString(),
-    };
-    setProjects((current) => [project, ...current]);
+    const project = createProject(input.name);
+    refresh();
     router.push(editorPath(project));
   };
 
   const handleOpen = (project: Project) => {
     router.push(editorPath(project));
+  };
+
+  const handleRename = (project: Project) => {
+    const next = window.prompt("Rename project", project.name);
+    if (next === null) return;
+    renameProject(project.id, next);
+    refresh();
+  };
+
+  const handleDuplicate = (project: Project) => {
+    const copy = duplicateProject(project.id);
+    refresh();
+    if (copy) router.push(editorPath(copy));
+  };
+
+  const handleDelete = (project: Project) => {
+    const ok = window.confirm(
+      `Delete “${project.name}”? This can’t be undone on this device.`
+    );
+    if (!ok) return;
+    deleteProject(project.id);
+    refresh();
   };
 
   return (
@@ -48,13 +74,21 @@ export function DashboardContent() {
               Recent Projects
             </h2>
             <p className="text-sm text-muted-foreground">
-              {projects.length} {projects.length === 1 ? "project" : "projects"}
+              {ready
+                ? `${projects.length} ${projects.length === 1 ? "project" : "projects"}`
+                : "Loading…"}
             </p>
           </div>
 
           <div className="mt-5">
-            {projects.length > 0 ? (
-              <ProjectGrid projects={projects} onOpen={handleOpen} />
+            {!ready ? null : projects.length > 0 ? (
+              <ProjectGrid
+                projects={projects}
+                onOpen={handleOpen}
+                onRename={handleRename}
+                onDuplicate={handleDuplicate}
+                onDelete={handleDelete}
+              />
             ) : (
               <EmptyState onNewProject={() => setModalOpen(true)} />
             )}

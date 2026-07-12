@@ -50,9 +50,9 @@ export function Sidebar() {
 
       <div className="p-3">
         <div className="rounded-xl border border-dashed border-sidebar-border bg-background/60 p-3 text-xs text-muted-foreground">
-          <p className="font-medium text-foreground">Mock data mode</p>
+          <p className="font-medium text-foreground">Saved on this device</p>
           <p className="mt-1">
-            Supabase isn&apos;t connected yet — projects live in local state.
+            Projects stay in your browser until a cloud account is connected.
           </p>
         </div>
       </div>

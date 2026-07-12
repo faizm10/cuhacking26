@@ -1,8 +1,7 @@
 import type { GameModeValue, GameType, Project, ProjectStatus } from "@/types";
 
-// Temporary stand-in for Supabase data. Starts empty so the dashboard shows
-// the empty state by default. Replace with a real query once the `projects`
-// table exists — the shape mirrors the intended schema.
+// Temporary empty seed. Real projects are loaded from localStorage
+// (`lib/storage/projects.ts`). Keep this export for older call sites / tests.
 
 export const MOCK_PROJECTS: Project[] = [];
 

@@ -1,42 +1,83 @@
 # PlayBox
 
-Sketch a game. Generate it. Play it. Tweak it with AI.
+**Sketch a game. Generate it. Play it. Tweak it with AI.**
+
+![PlayBox hero](frontend/public/hero.png)
 
 PlayBox turns a drawing (or an uploaded image) into a playable browser game.
-You label the canvas, describe what should happen, hit Generate, then iterate
-with chat or by editing the sketch and regenerating.
+You draw on the canvas, say what should happen, hit Generate, then keep
+improving it with chat — or by editing the sketch and regenerating.
+
+---
 
 ## How it works
 
+1. **Draw or upload** on the canvas (tldraw). Add labels if you want (Player, Enemy, Coin, Goal, etc.).
+2. **Pick a mode** — Auto (AI chooses), an arcade template, Tic-tac-toe, or Flappy Bird.
+3. **Describe the game** in a short sentence.
+4. **Generate** — the app calls OpenAI and builds a game config.
+5. **Play** on the right side of the editor.
+6. **Tweak** with AI chat (“make it harder”, “yellow bird”, “night sky”), or edit the sketch and hit **Regenerate from sketch**.
+
 ```
-Sketch / upload on tldraw
-  + text labels + game description
+Sketch / upload
+  + labels + description + mode
         ↓
 POST /api/generate-game  (Next.js → OpenAI)
         ↓
-Validated GameSpec (JSON)
+Game config (arcade / tic-tac-toe / flappy)
         ↓
-Play in the browser (HTML Canvas renderer)
+Play in the browser
         ↓
-Chat → POST /api/refine-game  (tweak rules live)
-  or edit the sketch → Regenerate from sketch
+Chat to tweak rules   or   edit sketch → Regenerate
 ```
 
-Supported templates: `dodge`, `collect`, `pong`, `snake`, `maze`, `clicker`,
-`simple-shooter`, `platform-jumper`.
+You only need the **frontend** for the full sketch → generate → play → chat loop.
+The backend folder is optional and not used by the editor today.
 
-More detail on the design: [GAME_PIPELINE.md](GAME_PIPELINE.md).
+---
+
+## Game modes
+
+**Arcade templates** (one shared canvas renderer):
+
+| Mode | Idea |
+| ---- | ---- |
+| `dodge` | Avoid hazards |
+| `collect` | Pick up items |
+| `pong` | Paddle vs ball |
+| `snake` | Grow and don’t crash |
+| `maze` | Find the way out |
+| `clicker` | Click to score |
+| `simple-shooter` | Shoot targets |
+| `platform-jumper` | Jump on platforms |
+
+**Dedicated modes** (their own engines):
+
+| Mode | Idea |
+| ---- | ---- |
+| `tic-tac-toe` | Classic 3×3 board vs AI |
+| `flappy-bird` | Tap / space to flap through pipes |
+
+Choose **Auto** and the AI picks a mode from your sketch. If you pick Tic-tac-toe or Flappy Bird yourself, that mode always wins — the app will not turn them into a generic arcade game.
+
+---
 
 ## Project layout
 
-| Folder      | What it is                                                                 |
-| ----------- | -------------------------------------------------------------------------- |
-| `frontend/` | Next.js app — landing, dashboard, editor, generate/refine API routes       |
-| `backend/`  | Optional Fastify + Gemini service (platformer level JSON; see its README)  |
+| Folder | What it is |
+| ------ | ---------- |
+| `frontend/` | The main app — landing page, dashboard, editor, and OpenAI API routes |
+| `backend/` | Optional Fastify + Gemini service (not wired into the editor UI yet) |
+| `figma/` | Design sandbox — not needed to run PlayBox |
+
+More detail lives in `frontend/README.md` and `backend/README.md`.
+
+---
 
 ## Quick start
 
-**One command** (frontend + backend):
+### One command (frontend + backend)
 
 ```bash
 ./dev.sh
@@ -45,63 +86,100 @@ More detail on the design: [GAME_PIPELINE.md](GAME_PIPELINE.md).
 - App: [http://localhost:3000](http://localhost:3000)
 - Backend health: [http://localhost:8080/health](http://localhost:8080/health)
 
-**Frontend only** (enough for generate + play + chat):
+`./dev.sh` installs deps on first run and can create `backend/.env`.
+It does **not** create `frontend/.env.local` — add your OpenAI key there yourself (see below).
+
+### Frontend only (enough to generate, play, and chat)
 
 ```bash
 cd frontend
 npm install
-cp .env.example .env.local   # add OPENAI_API_KEY (see below)
+cp .env.example .env.local   # then add OPENAI_API_KEY
 npm run dev
 ```
 
+Open [http://localhost:3000](http://localhost:3000).
+
+---
+
 ## Environment
 
-Generation runs in the **frontend** Next.js server routes. Put secrets in
-`frontend/.env.local` (gitignored), never with a `NEXT_PUBLIC_` prefix:
+Generation runs on the **frontend** Next.js server. Put secrets in
+`frontend/.env.local` (gitignored). Never use a `NEXT_PUBLIC_` prefix for OpenAI keys.
 
 ```bash
 # frontend/.env.local
 OPENAI_API_KEY=sk-...
 USE_MOCK_OPENAI=false
-# OPENAI_MODEL=gpt-4.1-mini   # optional; default is gpt-4.1-mini (fast).
-#                             # Use gpt-5-mini for higher quality / slower runs.
+# OPENAI_MODEL=gpt-4.1-mini   # optional; this is the default (fast)
+#                             # try gpt-5-mini for higher quality / slower runs
 ```
 
 `OPEN_API_KEY` is also accepted as an alias for `OPENAI_API_KEY`.
 
-Set `USE_MOCK_OPENAI=true` to exercise the UI without calling OpenAI (example
-games + simple chat patches).
+Set `USE_MOCK_OPENAI=true` to try the UI without calling OpenAI
+(example games + simple local chat tweaks).
 
-Optional Supabase keys are documented in `frontend/.env.example`.
+Optional Supabase keys are listed in `frontend/.env.example`.
+Projects are saved in the browser with **localStorage** (plus tldraw IndexedDB
+for drawings). They stay on this device until a cloud backend is wired up.
+
+---
 
 ## Using the editor
 
-1. Create a project from the dashboard.
-2. Sketch on the canvas, **upload / drop** a drawing, and add text labels
-   (Player, Enemy, Coin, Goal, or freeform instructions).
-3. Fill in **What should happen in this game?**
-4. Hit **Generate** — the right panel plays the result.
-5. **Chat** to tweak rules (“make enemies faster”, “add more coins”), or edit
-   the sketch and **Regenerate from sketch** for layout changes.
+1. Open the **dashboard** and create a project.
+2. **Sketch**, **upload / drop** a drawing, and add text labels if you like.
+3. Pick a **game mode** (or leave Auto).
+4. Fill in **What should happen in this game?**
+5. Hit **Generate** — the Play panel shows the result.
+6. Use **AI chat** to tweak rules, colors, and difficulty.
+7. For layout changes, edit the sketch and hit **Regenerate from sketch**.
+
+After Generate, the chat starts empty on purpose. A short summary of what the AI understood shows above the game, not inside the chat.
+
+---
+
+## Main API routes (frontend)
+
+| Route | What it does |
+| ----- | ------------ |
+| `POST /api/generate-game` | Sketch + prompt → playable game config |
+| `POST /api/refine-game` | Chat tweaks for arcade games |
+| `POST /api/refine-tic-tac-toe` | Chat tweaks for tic-tac-toe |
+| `POST /api/refine-flappy` | Chat tweaks for Flappy Bird |
+
+---
 
 ## Scripts
 
-| Command              | Where      | Description                |
-| -------------------- | ---------- | -------------------------- |
-| `./dev.sh`           | repo root  | Start frontend + backend   |
-| `npm run dev`        | `frontend` | Next.js dev server         |
-| `npm run build`      | `frontend` | Production build           |
-| `npm run test`       | `frontend` | Vitest unit tests          |
-| `npm run lint`       | `frontend` | ESLint                     |
-| `npm run dev`        | `backend`  | Fastify API (optional)     |
+| Command | Where | Description |
+| ------- | ----- | ----------- |
+| `./dev.sh` | repo root | Start frontend + backend |
+| `npm run dev` | `frontend` | Next.js dev server |
+| `npm run build` | `frontend` | Production build |
+| `npm run test` | `frontend` | Vitest unit tests |
+| `npm run lint` | `frontend` | ESLint |
+| `npm run dev` | `backend` | Optional Fastify API |
+
+---
 
 ## Stack
 
-- **Frontend:** Next.js (App Router), TypeScript, Tailwind, shadcn/ui, tldraw,
-  OpenAI SDK (server routes), HTML Canvas game renderer
+- **Frontend:** Next.js (App Router), React, TypeScript, Tailwind, shadcn/ui, tldraw, OpenAI SDK (server routes)
+- **Game play:** HTML Canvas for arcade games; dedicated React renderers for Tic-tac-toe and Flappy Bird
 - **Backend (optional):** Fastify, Zod, Google Gemini
 
-Each package has its own README (`frontend/README.md`, `backend/README.md`).
+---
+
+## Good to know
+
+- The **frontend is the product**. Sketch → generate → play → chat all run there.
+- **Projects save on this device** (localStorage + canvas IndexedDB). Refresh and reopen work; other browsers / machines won’t see them yet.
+- **Share and auth** are not built yet.
+- Need a key? Use `USE_MOCK_OPENAI=true` to explore the flow for free.
+
+---
 
 ## Contributors
 

@@ -67,9 +67,18 @@ const STATUS_STYLES: Record<ProjectStatus, string> = {
 interface ProjectCardProps {
   project: Project;
   onOpen: (project: Project) => void;
+  onRename: (project: Project) => void;
+  onDuplicate: (project: Project) => void;
+  onDelete: (project: Project) => void;
 }
 
-export function ProjectCard({ project, onOpen }: ProjectCardProps) {
+export function ProjectCard({
+  project,
+  onOpen,
+  onRename,
+  onDuplicate,
+  onDelete,
+}: ProjectCardProps) {
   const Icon = project.gameType
     ? GAME_TYPE_ICONS[project.gameType]
     : Pencil;
@@ -130,20 +139,16 @@ export function ProjectCard({ project, onOpen }: ProjectCardProps) {
               <MoreVertical />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={() => console.log("Rename project", project.id)}
-              >
+              <DropdownMenuItem onClick={() => onRename(project)}>
                 <Pencil /> Rename
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => console.log("Duplicate project", project.id)}
-              >
+              <DropdownMenuItem onClick={() => onDuplicate(project)}>
                 <Copy /> Duplicate
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 variant="destructive"
-                onClick={() => console.log("Delete project", project.id)}
+                onClick={() => onDelete(project)}
               >
                 <Trash2 /> Delete
               </DropdownMenuItem>
