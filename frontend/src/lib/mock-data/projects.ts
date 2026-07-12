@@ -16,6 +16,7 @@ export const GAME_TYPE_LABELS: Record<GameType, string> = {
   "platform-jumper": "Platform jumper",
   "tic-tac-toe": "Tic-tac-toe",
   "flappy-bird": "Flappy Bird",
+  platformer: "Platformer",
 };
 
 export const GAME_TYPE_OPTIONS = (
@@ -41,6 +42,11 @@ export const GAME_MODE_OPTIONS: GameModeOption[] = [
     value: "flappy-bird",
     label: "Flappy Bird",
     hint: "Tap-to-flap through pipes",
+  },
+  {
+    value: "platformer",
+    label: "Platformer",
+    hint: "Collect coins, reach the flag",
   },
 ];
 
