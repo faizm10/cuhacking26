@@ -45,7 +45,9 @@ export function GameDescriptionPanel({
         placeholder={
           mode === "tic-tac-toe"
             ? "I play X against the AI. Hand-drawn style, blue X, orange O."
-            : "Collect every coin, avoid the enemies, and reach the flag."
+            : mode === "flappy-bird"
+              ? "A yellow bird, green pipes, sunset sky. Relaxed pace with big gaps."
+              : "Collect every coin, avoid the enemies, and reach the flag."
         }
         onChange={(event) => onChange(event.target.value)}
         className="mt-1.5 w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"

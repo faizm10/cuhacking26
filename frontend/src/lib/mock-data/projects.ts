@@ -16,6 +16,7 @@ export const GAME_TYPE_LABELS: Record<GameType, string> = {
   "simple-shooter": "Simple shooter",
   "platform-jumper": "Platform jumper",
   "tic-tac-toe": "Tic-tac-toe",
+  "flappy-bird": "Flappy Bird",
 };
 
 export const GAME_TYPE_OPTIONS = (
@@ -29,14 +30,24 @@ export interface GameModeOption {
   hint?: string;
 }
 
+/** Modes with a dedicated, first-class engine/renderer (not arcade templates). */
+const DEDICATED_MODES: GameType[] = ["tic-tac-toe", "flappy-bird"];
+
 /** Editor game-mode selector: auto (AI decides) plus every explicit mode. */
 export const GAME_MODE_OPTIONS: GameModeOption[] = [
   { value: "auto", label: "Auto", hint: "AI picks from your sketch" },
-  ...GAME_TYPE_OPTIONS.filter((option) => option.value !== "tic-tac-toe"),
+  ...GAME_TYPE_OPTIONS.filter(
+    (option) => !DEDICATED_MODES.includes(option.value)
+  ),
   {
     value: "tic-tac-toe",
     label: "Tic-tac-toe",
     hint: "Classic 3×3 board game",
+  },
+  {
+    value: "flappy-bird",
+    label: "Flappy Bird",
+    hint: "Tap-to-flap through pipes",
   },
 ];
 

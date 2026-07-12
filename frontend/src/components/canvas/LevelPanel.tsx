@@ -40,6 +40,14 @@ const TicTacToeRenderer = dynamic(
   { ssr: false, loading: gameLoading }
 );
 
+const FlappyRenderer = dynamic(
+  () =>
+    import("@/components/game/flappy/FlappyRenderer").then(
+      (mod) => mod.FlappyRenderer
+    ),
+  { ssr: false, loading: gameLoading }
+);
+
 const GENERATE_STATUS_LINES = [
   "Reading your sketch…",
   "Picking a game style…",
@@ -242,6 +250,11 @@ export function LevelPanel({
                 )}
                 {game.rendererType === "tic-tac-toe" ? (
                   <TicTacToeRenderer
+                    key={`play-${gameRevision}`}
+                    spec={game.gameSpec}
+                  />
+                ) : game.rendererType === "flappy-bird" ? (
+                  <FlappyRenderer
                     key={`play-${gameRevision}`}
                     spec={game.gameSpec}
                   />

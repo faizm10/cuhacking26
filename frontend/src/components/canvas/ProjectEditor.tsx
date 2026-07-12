@@ -12,7 +12,7 @@ import type { ChatMessage } from "@/components/canvas/GameChat";
 import { GameDescriptionPanel } from "@/components/canvas/GameDescriptionPanel";
 import { LevelPanel } from "@/components/canvas/LevelPanel";
 import { generateGame, type GenerateGameResult } from "@/lib/api/generate";
-import { refineGame, refineTicTacToe } from "@/lib/api/refine";
+import { refineFlappy, refineGame, refineTicTacToe } from "@/lib/api/refine";
 import {
   filterImageFiles,
   validateImageFiles,
@@ -100,15 +100,8 @@ export function ProjectEditor({
       setResult(generated);
       setAutoPlay(false);
       setGameRevision((n) => n + 1);
-      setChatMessages([
-        {
-          id: newMessageId(),
-          role: "assistant",
-          content:
-            generated.interpretationSummary ||
-            "Game ready — edit the sketch and Regenerate for layout, or chat to tweak rules.",
-        },
-      ]);
+      // Chat stays empty until the user tweaks — interpretation lives in Play.
+      setChatMessages([]);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Could not generate the game"
@@ -152,6 +145,20 @@ export function ProjectEditor({
           gameSpec: tttRefined.spec,
           interpretationSummary: result.interpretationSummary,
           warnings: tttRefined.warnings,
+        });
+      } else if (result.rendererType === "flappy-bird") {
+        // Flappy Bird chat edits only touch its own config schema.
+        const flappyRefined = await refineFlappy({
+          message,
+          spec: result.gameSpec,
+          history,
+        });
+        refined = flappyRefined;
+        setResult({
+          rendererType: "flappy-bird",
+          gameSpec: flappyRefined.spec,
+          interpretationSummary: result.interpretationSummary,
+          warnings: flappyRefined.warnings,
         });
       } else {
         const canvasImage = await compressScreenshotForVision(
